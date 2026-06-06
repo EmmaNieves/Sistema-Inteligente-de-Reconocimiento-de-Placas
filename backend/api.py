@@ -6,6 +6,8 @@ from routes.vehicles import router as vehicles_router
 from routes.alerts import router as alerts_router
 from routes.cameras import router as cameras_router
 from routes.stats import router as stats_router
+from routes.simulador import router as simulator_router
+from routes.dashboard import router as dashboard_router
 
 app = FastAPI(
     title="Sistema de Reconocimiento de Placas",
@@ -27,6 +29,10 @@ app.include_router(vehicles_router)
 app.include_router(alerts_router)
 app.include_router(cameras_router)
 app.include_router(stats_router)
+app.include_router(simulator_router)
+app.include_router(dashboard_router)
+
+
 
 
 @app.on_event("startup")

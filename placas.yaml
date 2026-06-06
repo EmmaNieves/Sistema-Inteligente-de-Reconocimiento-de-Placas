@@ -1,0 +1,6 @@
+path: C:/Users/ASUS/Documents/proyecto_placa/datasets
+train: C:\Users\ASUS\Documents\proyecto_placa\datasets\images\train
+val: C:\Users\ASUS\Documents\proyecto_placa\datasets\images\val
+
+nc: 1
+names: ["placa"]

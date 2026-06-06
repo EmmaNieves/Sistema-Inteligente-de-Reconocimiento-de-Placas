@@ -244,3 +244,61 @@ def get_stats() -> dict:
         "open_alerts": len(alerts),
         "registered_vehicles": len(vehicles)
     }
+
+# ─────────────────────────────────────────────
+#  Simulaciones
+# ─────────────────────────────────────────────
+
+def save_simulation(
+    plate_text: str,
+    city: str,
+    vehicle_type: str = None,
+    camera_code: str = None,
+    authorized: bool = False
+) -> dict:
+    client = _get_client()
+    return client.table("simulations").insert({
+        "plate_text": plate_text,
+        "city": city,
+        "vehicle_type": vehicle_type,
+        "camera_code": camera_code,
+        "authorized": authorized,
+        "simulation_timestamp": datetime.now().isoformat()
+    }).execute()
+
+# ─────────────────────────────────────────────
+#  Dashboard
+# ─────────────────────────────────────────────
+
+
+def get_dashboard() -> dict:
+    client = _get_client()
+    detections = client.table("detections").select("authorized").execute().data
+    total = len(detections)
+    authorized = sum(1 for d in detections if d.get("authorized"))
+    unauthorized = total - authorized
+    alerts = client.table("alertas").select("id").eq("resolved", False).execute().data
+    vehicles = client.table("vehicles").select("id").execute().data
+    cameras = client.table("cameras").select("id", "status").execute().data
+    simulations = client.table("simulations").select("id").execute().data
+    recent_detections = (
+        client.table("detections").select("*")
+        .order("timestamp", desc=True).limit(5).execute().data
+    )
+    recent_alerts = (
+        client.table("alertas").select("*")
+        .order("timestamp", desc=True).limit(5).execute().data
+    )
+    active_cameras = sum(1 for c in cameras if c.get("status") == "active")
+
+    return {
+        "total_detections": total,
+        "authorized": authorized,
+        "unauthorized": unauthorized,
+        "open_alerts": len(alerts),
+        "registered_vehicles": len(vehicles),
+        "active_cameras": active_cameras,
+        "total_simulations": len(simulations),
+        "recent_detections": recent_detections,
+        "recent_alerts": recent_alerts
+    }

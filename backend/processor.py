@@ -1,13 +1,16 @@
 from ultralytics import YOLO
-import easyocr
+from paddleocr import PaddleOCR
 import numpy as np
 import cv2
 import re
 
-yolo_model = YOLO("runs/detect/train-5/weights/best.pt")
-ocr = easyocr.Reader(["en"], gpu=False)
-
+yolo_model = YOLO(r"C:\Users\ASUS\Documents\proyecto_placa\backend\runs\detect\train-5\weights\best.pt")
 print("Modelos cargados.")
+
+ocr = PaddleOCR(
+    use_angle_cls=True,
+    lang="en",
+)
 
 
 def corregir_placa(text: str) -> str:
@@ -41,16 +44,23 @@ def detectar_placa(frame: np.ndarray) -> list:
             crop_big = cv2.resize(crop, None, fx=2, fy=2, interpolation=cv2.INTER_LANCZOS4)
             cv2.imwrite("debug_processed.jpg", crop_big)
 
-            # EasyOCR devuelve lista de (bbox, text, prob)
-            ocr_results = ocr.readtext(crop_big)
-            if not ocr_results:
+            # Paddle OCR devuelve lista de (bbox, text, prob)
+            ocr_res = ocr.ocr(crop_big)
+
+            if not ocr_res or not ocr_res[0]:
                 print("OCR sin resultados")
                 continue
 
-            for (_, text_raw, prob) in ocr_results:
+            for line in ocr_res[0]:
+                text_raw = line[1][0]
+                prob = line[1][1]
+
                 print(f"OCR raw: '{text_raw}' prob:{prob:.2f}")
+
                 text = corregir_placa(text_raw)
+
                 print(f"OCR corregido: '{text}'")
+
                 if prob > 0.3 and re.match(r'^[A-Z]{3}\d{3}$', text):
                     placas.append({
                         "placa": text,

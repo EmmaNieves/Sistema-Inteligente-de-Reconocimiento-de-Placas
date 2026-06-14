@@ -38,9 +38,10 @@ _load_env_files()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", DEFAULT_SUPABASE_URL)
 SUPABASE_KEY = (
-    os.getenv("SUPABASE_KEY")
-    or os.getenv("SUPABASE_ANON_KEY")
+    os.getenv("SUPABASE_SERVICE_KEY")
     or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    or os.getenv("SUPABASE_KEY")
+    or os.getenv("SUPABASE_ANON_KEY")
 )
 STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "plate-images")
 
@@ -59,6 +60,34 @@ def _get_client() -> Client:
     if _client is None:
         _client = create_client(SUPABASE_URL, SUPABASE_KEY)
     return _client
+
+
+def _get_supabase_key_role() -> Optional[str]:
+    if not SUPABASE_KEY:
+        return None
+
+    try:
+        import base64
+        import json
+
+        payload = SUPABASE_KEY.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        decoded = base64.urlsafe_b64decode(payload.encode("utf-8")).decode("utf-8")
+        return json.loads(decoded).get("role")
+    except Exception:
+        return None
+
+
+def _require_service_role(operation: str) -> None:
+    role = _get_supabase_key_role()
+    if role == "service_role":
+        return
+
+    raise RuntimeError(
+        f"No se puede {operation} porque el backend esta usando una llave Supabase "
+        f"con rol '{role or 'desconocido'}'. Configura SUPABASE_SERVICE_KEY o "
+        "SUPABASE_SERVICE_ROLE_KEY con la service_role key en backend/.env."
+    )
 
 
 def _now() -> str:
@@ -152,10 +181,11 @@ def _get_default_camera_id() -> str:
     if camera:
         return camera["id"]
 
-    raise RuntimeError(
-        "No hay camaras registradas. Inserta al menos una fila en public.cameras "
-        "antes de guardar detecciones."
-    )
+    camera = ensure_default_camera()
+    if camera.get("id"):
+        return camera["id"]
+
+    raise RuntimeError("No fue posible crear o encontrar una camara por defecto.")
 
 
 def _resolve_camera_id(camera_id: Any = None) -> str:
@@ -266,6 +296,7 @@ def save_plate(
     camera_id: Any = None,
     yolo_confidence: Optional[float] = None,
     ocr_confidence: Optional[float] = None,
+    vehicle_type: Optional[str] = None,   # 👈 va en la firma, no adentro
 ) -> bool:
     save_detection(
         plate_text=plate_text,
@@ -275,6 +306,7 @@ def save_plate(
         image_np=image_np,
         yolo_confidence=yolo_confidence,
         ocr_confidence=ocr_confidence,
+        vehicle_type=vehicle_type,         # 👈 acá solo el valor
     )
     print(f"Placa guardada: {_normalize_plate(plate_text)}")
     return True
@@ -342,6 +374,7 @@ def save_detection(
     image_np: Any = None,
     yolo_confidence: Optional[float] = None,
     ocr_confidence: Optional[float] = None,
+    vehicle_type: Optional[str] = None,
 ) -> Dict[str, Any]:
     plate = _normalize_plate(plate_text)
     camera_uuid = _resolve_camera_id(camera_id)
@@ -365,7 +398,7 @@ def save_detection(
         "ocr_confidence": ocr_confidence,
         "authorized": is_authorized,
         "image_url": image_url or None,
-        "vehicle_type": vehicle.get("vehicle_type") if vehicle else None,
+        "vehicle_type": (vehicle.get("vehicle_type") if vehicle else None) or vehicle_type,
         "detection_timestamp": now,
         "inserted_at": now,
     }
@@ -448,14 +481,82 @@ def resolve_alert(alert_id: int) -> Dict[str, Any]:
 
 
 def get_all_cameras() -> List[Dict[str, Any]]:
-    response = (
-        _get_client()
-        .table("cameras")
-        .select("*")
-        .order("created_at", desc=True)
-        .execute()
-    )
+    query = _get_client().table("cameras").select("*")
+    try:
+        response = query.order("created_at", desc=True).execute()
+    except Exception as exc:
+        if "created_at" not in str(exc).lower():
+            raise
+        response = _get_client().table("cameras").select("*").execute()
+
     return [_map_camera(row) for row in response.data]
+
+
+def create_camera(
+    name: str,
+    location: Optional[str] = None,
+    camera_code: Optional[str] = None,
+    status: str = "activo",
+    active: bool = True,
+) -> Dict[str, Any]:
+    _require_service_role("registrar camaras")
+
+    client = _get_client()
+    now = _now()
+    code = (camera_code or name or "DEFAULT").strip().upper().replace(" ", "-")
+
+    full_payload = {
+        "camera_code": code,
+        "name": name,
+        "location": location,
+        "status": status,
+        "active": active,
+        "last_connection": now,
+        "created_at": now,
+    }
+
+    try:
+        response = client.table("cameras").insert(full_payload).execute()
+    except Exception as exc:
+        message = str(exc).lower()
+        if not any(column in message for column in ("camera_code", "status", "last_connection", "created_at")):
+            raise
+
+        legacy_payload = {
+            "name": name,
+            "location": location,
+            "active": active,
+        }
+        response = client.table("cameras").insert(legacy_payload).execute()
+
+    return _map_camera(response.data[0]) if response.data else {}
+
+
+def ensure_default_camera() -> Dict[str, Any]:
+    client = _get_client()
+
+    for column in ("camera_code", "name"):
+        try:
+            response = (
+                client.table("cameras")
+                .select("*")
+                .eq(column, "DEFAULT")
+                .limit(1)
+                .execute()
+            )
+            camera = _first(response)
+            if camera:
+                return _map_camera(camera)
+        except Exception:
+            continue
+
+    return create_camera(
+        name="DEFAULT",
+        location="Camara por defecto",
+        camera_code="DEFAULT",
+        status="activo",
+        active=True,
+    )
 
 
 def get_stats() -> Dict[str, int]:

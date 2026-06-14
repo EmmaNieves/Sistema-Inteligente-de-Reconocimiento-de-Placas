@@ -39,6 +39,7 @@ async def detect(file: UploadFile = File(...), camera_id: Optional[str] = None):
         plate_text = plate_data["placa"]
         yolo_confidence = plate_data["confianza_yolo"]
         ocr_confidence = plate_data["confianza_ocr"]
+        vehicle_type = plate_data.get("vehicle_type", "otro")  # 👈 línea nueva
 
         authorized = is_authorized_plate(plate_text)
         status = "AUTORIZADO" if authorized else "NO AUTORIZADO"
@@ -52,6 +53,7 @@ async def detect(file: UploadFile = File(...), camera_id: Optional[str] = None):
                 image_np=frame,
                 yolo_confidence=yolo_confidence,
                 ocr_confidence=ocr_confidence,
+                vehicle_type=vehicle_type,  # 👈 línea nueva
             )
         except Exception as exc:
             print(f"Error guardando deteccion: {exc}")

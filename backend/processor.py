@@ -11,6 +11,7 @@ MODEL_PATH = BASE_DIR / "runs" / "detect" / "train-5" / "weights" / "best.pt"
 if not MODEL_PATH.exists():
     raise FileNotFoundError(f"No se encontró el modelo YOLO en: {MODEL_PATH}")
 
+
 yolo_model = YOLO(str(MODEL_PATH))
 print(f"Modelo YOLO cargado desde: {MODEL_PATH}")
 
@@ -38,6 +39,8 @@ def corregir_placa(text: str) -> str:
 
 
 def detectar_placa(frame: np.ndarray) -> list:
+    frame = cv2.rotate(frame, cv2.ROTATE_180)
+    frame = cv2.flip(frame, 1)  # espejo horizontal
     results = yolo_model(frame, conf=0.05, verbose=False)
     print(f"YOLO detectó {sum(len(r.boxes) for r in results)} objetos")
 

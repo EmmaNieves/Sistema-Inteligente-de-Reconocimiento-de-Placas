@@ -566,6 +566,80 @@ app.get("/api/audiencias", async (req, res) => {
     res.status(500).json({ detail: err.message });
   }
 });
+// ── CAMERA INTELLIGENCE (Pendiente 7) ─────────────────────────────────────
 
+app.get("/api/camera-intel/:cameraId", async (req, res) => {
+  if (!await requireAuth(req, res)) return;
+
+  const { cameraId } = req.params;
+
+  try {
+    // Obtener detecciones de esta cámara (últimas 24h)
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: detections, error } = await supabase
+      .from("plates")
+      .select("plate_text, detection_timestamp, vehicle_type, authorized")
+      .eq("camera_id", cameraId)
+      .gte("detection_timestamp", oneDayAgo)
+      .order("detection_timestamp", { ascending: true });
+
+    if (error) return res.status(500).json({ detail: error.message });
+
+    const rows = detections ?? [];
+    if (rows.length === 0) {
+      return res.json({
+        camera_id: cameraId,
+        traffic_volume_24h: 0,
+        traffic_by_hour: Array(24).fill(0),
+        vehicle_types: {},
+        recurring_plates: [],
+        activity_level: 0,
+      });
+    }
+
+    // 1. Volumen por hora
+    const trafficByHour = Array(24).fill(0);
+    rows.forEach(row => {
+      const ts = row.detection_timestamp ? new Date(row.detection_timestamp) : null;
+      if (ts) trafficByHour[ts.getHours()] += 1;
+    });
+
+    // 2. Tipos de vehículos
+    const vehicleTypeMap = new Map<string, number>();
+    rows.forEach(row => {
+      const type = row.vehicle_type || "Sin tipo";
+      vehicleTypeMap.set(type, (vehicleTypeMap.get(type) ?? 0) + 1);
+    });
+    const vehicleTypes = Object.fromEntries(vehicleTypeMap);
+
+    // 3. Placas recurrentes (top 5)
+    const plateMap = new Map<string, number>();
+    rows.forEach(row => {
+      if (row.plate_text) {
+        plateMap.set(row.plate_text, (plateMap.get(row.plate_text) ?? 0) + 1);
+      }
+    });
+    const recurringPlates = Array.from(plateMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([plate, count]) => ({ plate_text: plate, count }));
+
+    // 4. Nivel de actividad (0-100)
+    const maxHourVolume = Math.max(...trafficByHour);
+    const activityLevel = maxHourVolume > 0 ? Math.round((trafficByHour.reduce((a, b) => a + b) / (maxHourVolume * 24)) * 100) : 0;
+
+    res.json({
+      camera_id: cameraId,
+      traffic_volume_24h: rows.length,
+      traffic_by_hour: trafficByHour,
+      vehicle_types: vehicleTypes,
+      recurring_plates: recurringPlates,
+      activity_level: Math.min(100, activityLevel),
+    });
+
+  } catch (err: any) {
+    res.status(500).json({ detail: err.message });
+  }
+});
   return httpServer;
 }

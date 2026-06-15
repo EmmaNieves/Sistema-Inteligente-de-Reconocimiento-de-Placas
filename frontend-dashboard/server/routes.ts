@@ -298,7 +298,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.post("/vehicles", async (req, res) => {
-    const user = await requireAuth(req, res);
+  const user = await requireRole(req, res, "operador");
     if (!user) return;
     const { plate, owner, vehicle_type, observations } = req.body;
     if (!plate || !owner || !vehicle_type) return res.status(400).json({ detail: "Placa, propietario y tipo son requeridos" });
@@ -324,7 +324,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.delete("/vehicles/:id", async (req, res) => {
-    if (!await requireAuth(req, res)) return;
+  const user = await requireRole(req, res, "administrador");
     const { error } = await supabase.from("vehicles").delete().eq("id", req.params.id);
     if (error) return res.status(500).json({ detail: error.message });
     res.status(204).send();
@@ -340,7 +340,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.post("/cameras", async (req, res) => {
-    if (!await requireAuth(req, res)) return;
+  const user = await requireAuth(req, res);
     const { data, error } = await supabase.from("cameras").insert(req.body).select().single();
     if (error) return res.status(500).json({ detail: error.message });
     res.status(201).json(data);
@@ -354,7 +354,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.delete("/cameras/:id", async (req, res) => {
-    if (!await requireAuth(req, res)) return;
+  const user = await requireRole(req, res, "administrador");
     const { error } = await supabase.from("cameras").delete().eq("id", req.params.id);
     if (error) return res.status(500).json({ detail: error.message });
     res.status(204).send();
@@ -406,7 +406,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.post("/users", async (req, res) => {
-    const user = await requireAuth(req, res);
+  const user = await requireRole(req, res, "administrador");
     if (!user) return;
     if (user.role !== "administrador") return res.status(403).json({ detail: "Acceso denegado" });
     const { username, email, password, role, status } = req.body;
@@ -443,7 +443,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.delete("/users/:id", async (req, res) => {
-    const user = await requireAuth(req, res);
+  const user = await requireRole(req, res, "administrador");
     if (!user) return;
     if (user.role !== "administrador") return res.status(403).json({ detail: "Acceso denegado" });
     const { error } = await supabase.from("users").delete().eq("id", req.params.id);

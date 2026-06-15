@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api, Camera, SimulationCreate } from "@/lib/api";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
-import { MapPin, Play, Pause, Square, Zap, AlertTriangle } from "lucide-react";
+import { MapPin, Play, Pause, Square, Zap, AlertTriangle, TrendingUp } from "lucide-react";
 
 // ─── Leaflet CSS ──────────────────────────────────────────────────────────────
 import "leaflet/dist/leaflet.css";
@@ -23,6 +23,15 @@ interface LiveEvent {
   plate_text: string;
   authorized: boolean;
   timestamp: number;
+}
+
+interface CameraIntel {
+  camera_id: string;
+  traffic_volume_24h: number;
+  traffic_by_hour: number[];
+  vehicle_types: Record<string, number>;
+  recurring_plates: Array<{ plate_text: string; count: number }>;
+  activity_level: number;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -73,12 +82,34 @@ export default function Mapa() {
   const [simSpeed, setSimSpeed] = useState<keyof typeof SPEEDS>("normal");
   const [liveEvents, setLiveEvents] = useState<LiveEvent[]>([]);
   const [pulsingCams, setPulsingCams] = useState<Set<string>>(new Set());
+  const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
+  const [cameraIntel, setCameraIntel] = useState<CameraIntel | null>(null);
+  const [loadingIntel, setLoadingIntel] = useState(false);
 
   const { data: cameras = [] } = useQuery<Camera[]>({
     queryKey: ["/api/cameras"],
     queryFn: () => api.getCameras(),
     refetchInterval: 30000,
   });
+
+  // ── Fetch camera intelligence ────────────────────────────────────────────────
+  const fetchCameraIntel = async (cameraId: string) => {
+    setLoadingIntel(true);
+    try {
+      const response = await fetch(`/api/camera-intel/${cameraId}`, {
+        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setCameraIntel(data);
+        setSelectedCameraId(cameraId);
+      }
+    } catch (err) {
+      console.error("Error fetching camera intel:", err);
+    } finally {
+      setLoadingIntel(false);
+    }
+  };
 
   // ── Init map ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -118,6 +149,11 @@ export default function Mapa() {
       const marker = L.marker([cam.latitud, cam.longitud], {
         icon: makeCameraIcon(cam.active, false),
       }).addTo(map);
+
+      // Click en el marcador para cargar inteligencia
+      marker.on("click", () => {
+        fetchCameraIntel(cam.id);
+      });
 
       marker.bindPopup(`
         <div style="font-family:sans-serif;min-width:160px">
@@ -213,7 +249,6 @@ export default function Mapa() {
       const plate = PLATES_POOL[Math.floor(Math.random() * PLATES_POOL.length)];
       const authorized = Math.random() > 0.3;
 
-      // Fire to backend (no await, best-effort)
       api.simulate({ camera_code: cam.camera_code, city: cam.location, plate_text: plate, vehicle_type: "automovil" } as SimulationCreate).catch(() => {});
 
       handleDetection(cam.camera_code, plate, authorized);
@@ -246,7 +281,6 @@ export default function Mapa() {
     setSimRunning(false);
     setSimPaused(false);
     setLiveEvents([]);
-    // Clear heatmap
     Object.values(heatCirclesRef.current).forEach(c => c.remove());
     heatCirclesRef.current = {};
     detectionCountRef.current = {};
@@ -260,7 +294,6 @@ export default function Mapa() {
   return (
     <Layout>
       <div className="space-y-4">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-[#253232]" style={{ fontFamily: "'Fredoka One', Helvetica" }}>
@@ -271,7 +304,6 @@ export default function Mapa() {
             </p>
           </div>
 
-          {/* Speed selector */}
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-400">Velocidad:</span>
             {(Object.keys(SPEEDS) as (keyof typeof SPEEDS)[]).map(s => (
@@ -290,7 +322,6 @@ export default function Mapa() {
           </div>
         </div>
 
-        {/* Warning if cameras have no coords */}
         {camsNoCoords.length > 0 && (
           <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-sm text-amber-700">
             <AlertTriangle size={15} />
@@ -299,11 +330,9 @@ export default function Mapa() {
         )}
 
         <div className="flex gap-4 h-[calc(100vh-220px)]">
-          {/* Map */}
           <div className="relative flex-1 rounded-2xl overflow-hidden shadow-sm border border-gray-100">
             <div ref={mapDivRef} className="w-full h-full" />
 
-            {/* Sim control panel (floating) */}
             <div className="absolute top-4 left-4 z-[1000] bg-white/95 backdrop-blur-sm rounded-2xl shadow-lg p-4 min-w-[200px]">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
                 Simulación de Tráfico
@@ -342,7 +371,6 @@ export default function Mapa() {
                 </div>
               )}
 
-              {/* Legend */}
               <div className="mt-4 space-y-1.5 border-t border-gray-100 pt-3">
                 <p className="text-xs font-semibold text-gray-400 mb-2">Leyenda</p>
                 <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -361,39 +389,95 @@ export default function Mapa() {
             </div>
           </div>
 
-          {/* Live feed */}
-          <div className="w-72 flex flex-col bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-50 flex items-center gap-2">
-              <Zap size={14} className="text-[#fc6c03]" />
-              <p className="text-sm font-semibold text-[#253232]">Registro en vivo</p>
-              {liveEvents.length > 0 && (
-                <span className="ml-auto text-xs bg-[#fc6c03]/10 text-[#fc6c03] px-2 py-0.5 rounded-full font-medium">
-                  {liveEvents.length}
-                </span>
-              )}
-            </div>
-
-            <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
-              {liveEvents.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-gray-300 gap-2 py-12">
-                  <MapPin size={32} />
-                  <p className="text-xs text-center">Inicia la simulación o espera<br />detecciones en tiempo real</p>
+          <div className="w-72 flex flex-col gap-4">
+            {selectedCameraId && cameraIntel && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col">
+                <div className="px-4 py-3 border-b border-gray-50">
+                  <p className="text-sm font-semibold text-[#253232]">Inteligencia de Cámara</p>
                 </div>
-              ) : (
-                liveEvents.map((e, i) => (
-                  <div key={i} className="flex items-center justify-between px-4 py-2.5">
-                    <div>
-                      <p className="text-sm font-mono font-bold text-[#253232]">{e.plate_text}</p>
-                      <p className="text-xs text-gray-400">{e.camera_code}</p>
-                    </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                      e.authorized ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                    }`}>
-                      {e.authorized ? "✓" : "✗"}
-                    </span>
+                <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 text-sm">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 mb-1">Volumen (24h)</p>
+                    <p className="text-lg font-bold text-[#253232]">{cameraIntel.traffic_volume_24h}</p>
                   </div>
-                ))
-              )}
+
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 mb-1">Nivel de Actividad</p>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#fc6c03] transition-all"
+                          style={{ width: `${cameraIntel.activity_level}%` }}
+                        />
+                      </div>
+                      <span className="text-xs font-bold">{cameraIntel.activity_level}%</span>
+                    </div>
+                  </div>
+
+                  {Object.keys(cameraIntel.vehicle_types).length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 mb-1.5">Tipos de Vehículos</p>
+                      <div className="space-y-1">
+                        {Object.entries(cameraIntel.vehicle_types).map(([type, count]) => (
+                          <div key={type} className="flex justify-between items-center text-xs">
+                            <span className="text-gray-600">{type}</span>
+                            <span className="font-bold text-[#253232]">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {cameraIntel.recurring_plates.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 mb-1.5">Placas Recurrentes</p>
+                      <div className="space-y-1">
+                        {cameraIntel.recurring_plates.map((p) => (
+                          <div key={p.plate_text} className="flex justify-between items-center text-xs">
+                            <span className="font-mono font-bold text-[#253232]">{p.plate_text}</span>
+                            <span className="bg-gray-100 px-2 py-0.5 rounded text-gray-600">{p.count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col flex-1">
+              <div className="px-4 py-3 border-b border-gray-50 flex items-center gap-2">
+                <Zap size={14} className="text-[#fc6c03]" />
+                <p className="text-sm font-semibold text-[#253232]">Registro en vivo</p>
+                {liveEvents.length > 0 && (
+                  <span className="ml-auto text-xs bg-[#fc6c03]/10 text-[#fc6c03] px-2 py-0.5 rounded-full font-medium">
+                    {liveEvents.length}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex-1 overflow-y-auto divide-y divide-gray-50">
+                {liveEvents.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-300 gap-2 py-12">
+                    <MapPin size={32} />
+                    <p className="text-xs text-center">Inicia la simulación o espera<br />detecciones en tiempo real</p>
+                  </div>
+                ) : (
+                  liveEvents.map((e, i) => (
+                    <div key={i} className="flex items-center justify-between px-4 py-2.5">
+                      <div>
+                        <p className="text-sm font-mono font-bold text-[#253232]">{e.plate_text}</p>
+                        <p className="text-xs text-gray-400">{e.camera_code}</p>
+                      </div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                        e.authorized ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                      }`}>
+                        {e.authorized ? "✓" : "✗"}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { supabase } from "./supabase";
 import bcrypt from "bcryptjs";
+import { requireAuth, requireRole } from "./middleware/auth";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret_change_me";

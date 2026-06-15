@@ -8,6 +8,7 @@ from routes.cameras import router as cameras_router
 from routes.stats import router as stats_router
 from routes.simulador import router as simulator_router
 from routes.dashboard import router as dashboard_router
+from routes.routes_auth import router as auth_router
 
 app = FastAPI(
     title="Sistema de Reconocimiento de Placas",
@@ -31,6 +32,7 @@ app.include_router(cameras_router)
 app.include_router(stats_router)
 app.include_router(simulator_router)
 app.include_router(dashboard_router)
+app.include_router(auth_router)
 
 
 

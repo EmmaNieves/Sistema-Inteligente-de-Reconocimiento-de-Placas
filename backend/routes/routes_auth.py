@@ -45,15 +45,16 @@ class ConfirmPasswordRequest(BaseModel):
 @router.post("/registro", status_code=201)
 def registrar_usuario(
     body: RegisterRequest,
-    current_user: dict = Depends(require_role("admin"))   # solo admins
+    current_user: dict = Depends(require_role("administrador"))
+
 ):
     # Verificar que el email no exista ya
-    existente = supabase.table("usuarios").select("id").eq("email", body.email).execute()
+    existente = supabase.table("users").select("id").eq("email", body.email).execute()
     if existente.data:
         raise HTTPException(status_code=400, detail="El correo ya está registrado")
 
     # Guardar en Supabase con contraseña hasheada
-    nuevo = supabase.table("usuarios").insert({
+    nuevo = supabase.table("users").insert({
         "username": body.username,
         "email": body.email,
         "password_hash": hash_password(body.password),
@@ -73,33 +74,33 @@ def registrar_usuario(
 @router.post("/login")
 def login(body: LoginRequest):
     # Buscar usuario por email
-    resultado = supabase.table("usuarios").select("*").eq("email", body.email).execute()
+    resultado = supabase.table("users").select("*").eq("email", body.email).execute()
 
     if not resultado.data:
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
 
-    usuario = resultado.data[0]
+    users = resultado.data[0]
 
     # Verificar contraseña
-    if not verify_password(body.password, usuario["password_hash"]):
+    if not verify_password(body.password, users["password_hash"]):
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
 
     # Verificar que la cuenta esté activa
-    if usuario.get("status") != "activo":
+    if users.get("status") != "activo":
         raise HTTPException(status_code=403, detail="Cuenta inactiva o suspendida")
 
     # Crear token JWT con id, email y rol
     token = create_access_token(data={
-        "sub": str(usuario["id"]),
-        "email": usuario["email"],
-        "role": usuario["role"]
+        "sub": str(users["id"]),
+        "email": users["email"],
+        "role": users["role"]
     })
 
     return {
         "access_token": token,
         "token_type": "bearer",
-        "role": usuario["role"],
-        "username": usuario["username"]
+        "role": users["role"],
+        "username": users["username"]
     }
 
 
@@ -115,7 +116,7 @@ def confirmar_password(
     current_user: dict = Depends(get_current_user)
 ):
     # Buscar usuario actual en BD
-    resultado = supabase.table("usuarios").select("password_hash").eq("id", current_user["id"]).execute()
+    resultado = supabase.table("users").select("password_hash").eq("id", current_user["id"]).execute()
 
     if not resultado.data:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
@@ -136,6 +137,6 @@ def confirmar_password(
 
 @router.get("/perfil")
 def ver_perfil(current_user: dict = Depends(get_current_user)):
-    resultado = supabase.table("usuarios").select("id, username, email, role, status, created_at") \
+    resultado = supabase.table("users").select("id, username, email, role, status, created_at") \
         .eq("id", current_user["id"]).execute()
     return resultado.data[0]

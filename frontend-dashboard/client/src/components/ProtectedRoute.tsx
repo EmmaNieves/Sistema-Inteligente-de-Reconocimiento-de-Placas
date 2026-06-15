@@ -4,10 +4,16 @@ import { useAuth } from "@/hooks/use-auth";
 
 interface Props {
   children: ReactNode;
-  adminOnly?: boolean;
+  requiredRole?: "visualizador" | "operador" | "administrador";
 }
 
-export function ProtectedRoute({ children, adminOnly }: Props) {
+const ROLE_HIERARCHY: Record<string, number> = {
+  visualizador: 1,
+  operador: 2,
+  administrador: 3,
+};
+
+export function ProtectedRoute({ children, requiredRole }: Props) {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -19,7 +25,12 @@ export function ProtectedRoute({ children, adminOnly }: Props) {
   }
 
   if (!user) return <Redirect to="/login" />;
-  if (adminOnly && user.role !== "administrador") return <Redirect to="/dashboard" />;
+
+  if (requiredRole) {
+    const userRank = ROLE_HIERARCHY[user.role] ?? 0;
+    const minRank = ROLE_HIERARCHY[requiredRole] ?? 0;
+    if (userRank < minRank) return <Redirect to="/dashboard" />;
+  }
 
   return <>{children}</>;
 }

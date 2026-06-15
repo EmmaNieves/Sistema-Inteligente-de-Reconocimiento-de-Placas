@@ -283,7 +283,68 @@ export default function Estadisticas() {
         </section>
 
         <hr className="border-[#E5E7EB]" />
+{/* ─── BLOQUE NUEVO(5): Perfil Socioeconómico ────────────────────── */}
+        <section className="flex flex-col gap-6">
+        <div className="flex flex-col gap-1">
+            <h2 style={{ fontFamily: "'Fredoka One', cursive" }} className="text-[32px] text-[#111827]">
+            Perfil Socioeconómico de la Zona
+            </h2>
+            <p className="text-[14px] text-[#6B7280]">
+            Estimación basada en distribución de tipos de vehículos
+            </p>
+        </div>
 
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white border border-[#F3F4F6] shadow-sm rounded-2xl p-5">
+            <span className="text-[13px] text-[#6B7280] block mb-1">Motos</span>
+            <div className="font-bold text-2xl text-[#111827]">
+                {stats?.categoryData?.filter(c => c.name.toLowerCase().includes("moto")).reduce((s, c) => s + c.auth + c.denied, 0) || 0}
+            </div>
+            </div>
+            <div className="bg-white border border-[#F3F4F6] shadow-sm rounded-2xl p-5">
+            <span className="text-[13px] text-[#6B7280] block mb-1">Autos compactos</span>
+            <div className="font-bold text-2xl text-[#111827]">
+                {stats?.categoryData?.filter(c => c.name.toLowerCase().includes("compacto") || c.name.toLowerCase().includes("sedan")).reduce((s, c) => s + c.auth + c.denied, 0) || 0}
+            </div>
+            </div>
+            <div className="bg-white border border-[#F3F4F6] shadow-sm rounded-2xl p-5">
+            <span className="text-[13px] text-[#6B7280] block mb-1">Camionetas/SUV</span>
+            <div className="font-bold text-2xl text-[#111827]">
+                {stats?.categoryData?.filter(c => c.name.toLowerCase().includes("camioneta") || c.name.toLowerCase().includes("suv")).reduce((s, c) => s + c.auth + c.denied, 0) || 0}
+            </div>
+            </div>
+            <div className="bg-white border border-[#F3F4F6] shadow-sm rounded-2xl p-5">
+            <span className="text-[13px] text-[#6B7280] block mb-1">Camiones</span>
+            <div className="font-bold text-2xl text-[#111827]">
+                {stats?.categoryData?.filter(c => c.name.toLowerCase().includes("camion") || c.name.toLowerCase().includes("truck")).reduce((s, c) => s + c.auth + c.denied, 0) || 0}
+            </div>
+            </div>
+        </div>
+
+        <div className="bg-[#FFF7ED] border border-[#FC6C03] rounded-2xl p-6">
+            <p className="text-[13px] font-semibold text-[#111827] mb-2">Segmento socioeconómico estimado:</p>
+            <p className="text-[18px] font-bold text-[#FC6C03]">
+            {(() => {
+                const motos = stats?.categoryData?.filter(c => c.name.toLowerCase().includes("moto")).reduce((s, c) => s + c.auth + c.denied, 0) || 0;
+                const autos = stats?.categoryData?.filter(c => c.name.toLowerCase().includes("compacto") || c.name.toLowerCase().includes("sedan")).reduce((s, c) => s + c.auth + c.denied, 0) || 0;
+                const suv = stats?.categoryData?.filter(c => c.name.toLowerCase().includes("camioneta") || c.name.toLowerCase().includes("suv")).reduce((s, c) => s + c.auth + c.denied, 0) || 0;
+                const camiones = stats?.categoryData?.filter(c => c.name.toLowerCase().includes("camion") || c.name.toLowerCase().includes("truck")).reduce((s, c) => s + c.auth + c.denied, 0) || 0;
+                const total = stats?.totalDetections || 1;
+                const motoPercent = (motos / total) * 100;
+                const suvPercent = (suv / total) * 100;
+                const truckPercent = (camiones / total) * 100;
+
+                if (motoPercent > 40) return "Bajo";
+                if (truckPercent > 30) return "Bajo-Medio";
+                if (suvPercent > 50) return "Medio-Alto";
+                if (autos > 60 && motoPercent < 10) return "Medio-Alto";
+                if (suvPercent > 30 && motoPercent < 5) return "Alto";
+                return "Medio";
+            })()}
+            </p>
+        </div>
+        </section>
+        
         {/* ─── BLOQUE 5: Mapa de Calor ────────────────────── */}
         <section className="flex flex-col gap-6">
           <h2 style={{ fontFamily: "'Fredoka One', cursive" }} className="text-[32px] text-[#111827]">Análisis de Horarios Pico</h2>

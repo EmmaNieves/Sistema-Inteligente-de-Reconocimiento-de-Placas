@@ -641,5 +641,79 @@ app.get("/api/camera-intel/:cameraId", async (req, res) => {
     res.status(500).json({ detail: err.message });
   }
 });
+
+  // ── VEHICLE PROFILE BY ZONE (Pendiente 8) ────────────────────────────────────
+
+app.get("/api/vehicle-profile/:cameraId", async (req, res) => {
+  if (!await requireAuth(req, res)) return;
+
+  const { cameraId } = req.params;
+
+  try {
+    const { data: detections, error } = await supabase
+      .from("plates")
+      .select("vehicle_type")
+      .eq("camera_id", cameraId);
+
+    if (error) return res.status(500).json({ detail: error.message });
+
+    const rows = detections ?? [];
+    if (rows.length === 0) {
+      return res.json({
+        camera_id: cameraId,
+        motos: 0,
+        autos_compactos: 0,
+        camionetas: 0,
+        camiones: 0,
+        total: 0,
+        socioeconomic_segment: "Sin datos",
+      });
+    }
+
+    // Contar por tipo
+    const counts = {
+      motos: 0,
+      autos_compactos: 0,
+      camionetas: 0,
+      camiones: 0,
+    };
+
+    rows.forEach((row: any) => {
+      const type = (row.vehicle_type || "").toLowerCase();
+      if (type.includes("moto")) counts.motos++;
+      else if (type.includes("compacto") || type.includes("sedan")) counts.autos_compactos++;
+      else if (type.includes("camioneta") || type.includes("suv")) counts.camionetas++;
+      else if (type.includes("camion") || type.includes("truck")) counts.camiones++;
+      else counts.autos_compactos++; // default
+    });
+
+    const total = rows.length;
+    const motorPercentage = (counts.motos / total) * 100;
+    const autoPercentage = (counts.autos_compactos / total) * 100;
+    const suvPercentage = (counts.camionetas / total) * 100;
+    const truckPercentage = (counts.camiones / total) * 100;
+
+    // Estimar segmento socioeconómico
+    let segment = "Medio";
+    if (motorPercentage > 40) segment = "Bajo";
+    else if (truckPercentage > 30) segment = "Bajo-Medio";
+    else if (suvPercentage > 50) segment = "Medio-Alto";
+    else if (autoPercentage > 60 && motorPercentage < 10) segment = "Medio-Alto";
+    else if (suvPercentage > 30 && motorPercentage < 5) segment = "Alto";
+
+    res.json({
+      camera_id: cameraId,
+      motos: Math.round(motorPercentage),
+      autos_compactos: Math.round(autoPercentage),
+      camionetas: Math.round(suvPercentage),
+      camiones: Math.round(truckPercentage),
+      total,
+      socioeconomic_segment: segment,
+    });
+
+  } catch (err: any) {
+    res.status(500).json({ detail: err.message });
+  }
+});
   return httpServer;
 }

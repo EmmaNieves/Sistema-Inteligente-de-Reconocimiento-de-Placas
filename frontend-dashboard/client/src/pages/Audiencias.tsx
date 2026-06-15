@@ -211,6 +211,122 @@ export default function Audiencias() {
           ))}
         </div>
 
+        {/* VEHICLE PROFILE BY ZONE (Pendiente 8) */}
+        <div className="bg-white border border-[#F3F4F6] shadow-sm rounded-2xl p-6 flex flex-col gap-4">
+          <h2 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }} className="font-bold text-[18px] text-[#1F2937]">
+            Perfil de vehículos por zona
+          </h2>
+          <p className="text-[13px] text-[#6B7280]">
+            Distribución de tipos de vehículos y estimación de segmento socioeconómico.
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+            <div className="bg-[#F9FAFB] border border-[#F3F4F6] rounded-xl p-4">
+              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-2">Motos</span>
+              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-2xl font-bold text-[#111827]">
+                {data.placas.filter(p => p.vehicle_type.toLowerCase().includes("moto")).length}
+              </span>
+            </div>
+            <div className="bg-[#F9FAFB] border border-[#F3F4F6] rounded-xl p-4">
+              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-2">Autos compactos</span>
+              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-2xl font-bold text-[#111827]">
+                {data.placas.filter(p => p.vehicle_type.toLowerCase().includes("compacto") || p.vehicle_type.toLowerCase().includes("sedan")).length}
+              </span>
+            </div>
+            <div className="bg-[#F9FAFB] border border-[#F3F4F6] rounded-xl p-4">
+              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-2">Camionetas/SUV</span>
+              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-2xl font-bold text-[#111827]">
+                {data.placas.filter(p => p.vehicle_type.toLowerCase().includes("camioneta") || p.vehicle_type.toLowerCase().includes("suv")).length}
+              </span>
+            </div>
+            <div className="bg-[#F9FAFB] border border-[#F3F4F6] rounded-xl p-4">
+              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-2">Camiones</span>
+              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-2xl font-bold text-[#111827]">
+                {data.placas.filter(p => p.vehicle_type.toLowerCase().includes("camion") || p.vehicle_type.toLowerCase().includes("truck")).length}
+              </span>
+            </div>
+          </div>
+          <div className="bg-[#FFF7ED] border border-[#FC6C03] rounded-xl p-4 mt-2">
+            <p className="text-[13px] font-semibold text-[#111827]">Segmento socioeconómico estimado:</p>
+            <p className="text-[14px] font-bold text-[#FC6C03] mt-1">
+              {(() => {
+                const motos = data.placas.filter(p => p.vehicle_type.toLowerCase().includes("moto")).length;
+                const autos = data.placas.filter(p => p.vehicle_type.toLowerCase().includes("compacto") || p.vehicle_type.toLowerCase().includes("sedan")).length;
+                const suv = data.placas.filter(p => p.vehicle_type.toLowerCase().includes("camioneta") || p.vehicle_type.toLowerCase().includes("suv")).length;
+                const camiones = data.placas.filter(p => p.vehicle_type.toLowerCase().includes("camion") || p.vehicle_type.toLowerCase().includes("truck")).length;
+                const total = data.total_placas || 1;
+                const motoPercent = (motos / total) * 100;
+                const suvPercent = (suv / total) * 100;
+                const truckPercent = (camiones / total) * 100;
+
+                if (motoPercent > 40) return "Bajo";
+                if (truckPercent > 30) return "Bajo-Medio";
+                if (suvPercent > 50) return "Medio-Alto";
+                if (autos > 60 && motoPercent < 10) return "Medio-Alto";
+                if (suvPercent > 30 && motoPercent < 5) return "Alto";
+                return "Medio";
+              })()}
+            </p>
+          </div>
+        </div>
+
+        {/* VEHICLE PROFILE BY ZONE (Pendiente 8) */}
+        <div className="bg-white border border-[#F3F4F6] shadow-sm rounded-2xl p-6 flex flex-col gap-4">
+          <h2 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }} className="font-bold text-[18px] text-[#1F2937]">
+            Perfil de vehículos por zona
+          </h2>
+          <p className="text-[13px] text-[#6B7280]">
+            Distribución de tipos de vehículos y estimación de segmento socioeconómico.
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+            <div className="bg-[#F9FAFB] border border-[#F3F4F6] rounded-xl p-4">
+              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-2">Motos</span>
+              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-2xl font-bold text-[#111827]">
+                {data.placas.filter(p => p.vehicle_type.toLowerCase().includes("moto")).length}
+              </span>
+            </div>
+            <div className="bg-[#F9FAFB] border border-[#F3F4F6] rounded-xl p-4">
+              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-2">Autos compactos</span>
+              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-2xl font-bold text-[#111827]">
+                {data.placas.filter(p => p.vehicle_type.toLowerCase().includes("compacto") || p.vehicle_type.toLowerCase().includes("sedan")).length}
+              </span>
+            </div>
+            <div className="bg-[#F9FAFB] border border-[#F3F4F6] rounded-xl p-4">
+              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-2">Camionetas/SUV</span>
+              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-2xl font-bold text-[#111827]">
+                {data.placas.filter(p => p.vehicle_type.toLowerCase().includes("camioneta") || p.vehicle_type.toLowerCase().includes("suv")).length}
+              </span>
+            </div>
+            <div className="bg-[#F9FAFB] border border-[#F3F4F6] rounded-xl p-4">
+              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-2">Camiones</span>
+              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-2xl font-bold text-[#111827]">
+                {data.placas.filter(p => p.vehicle_type.toLowerCase().includes("camion") || p.vehicle_type.toLowerCase().includes("truck")).length}
+              </span>
+            </div>
+          </div>
+          <div className="bg-[#FFF7ED] border border-[#FC6C03] rounded-xl p-4 mt-2">
+            <p className="text-[13px] font-semibold text-[#111827]">Segmento socioeconómico estimado:</p>
+            <p className="text-[14px] font-bold text-[#FC6C03] mt-1">
+              {(() => {
+                const motos = data.placas.filter(p => p.vehicle_type.toLowerCase().includes("moto")).length;
+                const autos = data.placas.filter(p => p.vehicle_type.toLowerCase().includes("compacto") || p.vehicle_type.toLowerCase().includes("sedan")).length;
+                const suv = data.placas.filter(p => p.vehicle_type.toLowerCase().includes("camioneta") || p.vehicle_type.toLowerCase().includes("suv")).length;
+                const camiones = data.placas.filter(p => p.vehicle_type.toLowerCase().includes("camion") || p.vehicle_type.toLowerCase().includes("truck")).length;
+                const total = data.total_placas || 1;
+                const motoPercent = (motos / total) * 100;
+                const suvPercent = (suv / total) * 100;
+                const truckPercent = (camiones / total) * 100;
+
+                if (motoPercent > 40) return "Bajo";
+                if (truckPercent > 30) return "Bajo-Medio";
+                if (suvPercent > 50) return "Medio-Alto";
+                if (autos > 60 && motoPercent < 10) return "Medio-Alto";
+                if (suvPercent > 30 && motoPercent < 5) return "Alto";
+                return "Medio";
+              })()}
+            </p>
+          </div>
+        </div>
+
         {/* Recurrencia + Insight */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white border border-[#F3F4F6] shadow-sm rounded-2xl p-6 flex flex-col justify-center gap-3">

@@ -5,8 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-
-
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import Estadisticas from "@/pages/Estadisticas";
@@ -23,33 +21,40 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      
+      {/* VISUALIZADORES - Solo lectura */}
       <Route path="/dashboard">
-        <ProtectedRoute><Dashboard /></ProtectedRoute>
+        <ProtectedRoute requiredRole="visualizador"><Dashboard /></ProtectedRoute>
       </Route>
       <Route path="/estadisticas">
-        <ProtectedRoute><Estadisticas /></ProtectedRoute>
+        <ProtectedRoute requiredRole="visualizador"><Estadisticas /></ProtectedRoute>
       </Route>
       <Route path="/audiencias">
-        <ProtectedRoute><Audiencias /></ProtectedRoute>
+        <ProtectedRoute requiredRole="visualizador"><Audiencias /></ProtectedRoute>
       </Route>
       <Route path="/detecciones">
-        <ProtectedRoute><Detecciones /></ProtectedRoute>
+        <ProtectedRoute requiredRole="visualizador"><Detecciones /></ProtectedRoute>
       </Route>
       <Route path="/alertas">
-        <ProtectedRoute><Alertas /></ProtectedRoute>
-      </Route>
-      <Route path="/vehiculos">
-        <ProtectedRoute><Vehiculos /></ProtectedRoute>
-      </Route>
-      <Route path="/camaras">
-        <ProtectedRoute><Camaras /></ProtectedRoute>
+        <ProtectedRoute requiredRole="visualizador"><Alertas /></ProtectedRoute>
       </Route>
       <Route path="/mapa">
-        <ProtectedRoute><Mapa /></ProtectedRoute>
+        <ProtectedRoute requiredRole="visualizador"><Mapa /></ProtectedRoute>
       </Route>
+
+      {/* OPERADORES - Lectura + Escritura */}
+      <Route path="/vehiculos">
+        <ProtectedRoute requiredRole="operador"><Vehiculos /></ProtectedRoute>
+      </Route>
+      <Route path="/camaras">
+        <ProtectedRoute requiredRole="operador"><Camaras /></ProtectedRoute>
+      </Route>
+
+      {/* ADMINISTRADORES - Acceso total */}
       <Route path="/usuarios">
-        <ProtectedRoute adminOnly><Usuarios /></ProtectedRoute>
+        <ProtectedRoute requiredRole="administrador"><Usuarios /></ProtectedRoute>
       </Route>
+
       <Route path="/">
         <Redirect to="/login" />
       </Route>
@@ -71,4 +76,5 @@ function App() {
   );
 }
 
+export default App;
 export default App;

@@ -179,10 +179,10 @@ Este proyecto utilizó las siguientes herramientas de IA durante su desarrollo:
 
 ## 👥 Integrantes del grupo
 
-- [NOMBRE INTEGRANTE 1]
-- [NOMBRE INTEGRANTE 2]
-- [NOMBRE INTEGRANTE 3]
-- [NOMBRE INTEGRANTE 4]
+- Jhon Mindiola  
+- Yeleinys Gomez
+- Jhonar De Arco
+- Emmanuel 
 
 ---
 

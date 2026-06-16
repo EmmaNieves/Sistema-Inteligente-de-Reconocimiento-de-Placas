@@ -2,7 +2,7 @@ from typing import Optional
 
 import cv2
 import numpy as np
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, File, Query, UploadFile
 
 from database import (
     create_alert,
@@ -88,5 +88,20 @@ async def detect(file: UploadFile = File(...), camera_id: Optional[str] = None):
 
 
 @router.get("/")
-def list_detections(limit: int = 100):
-    return {"detections": get_all_detections(limit)}
+def list_detections(
+    limit: int = 100,
+    plate: Optional[str] = Query(None, description="Filtrar por número de placa (parcial)"),
+    authorized: Optional[bool] = Query(None, description="Filtrar por estado: true=autorizado, false=no autorizado"),
+    camera_id: Optional[str] = Query(None, description="Filtrar por ID de cámara"),
+    from_date: Optional[str] = Query(None, alias="from", description="Fecha inicio YYYY-MM-DD"),
+    to_date: Optional[str] = Query(None, alias="to", description="Fecha fin YYYY-MM-DD"),
+):
+    detections = get_all_detections(
+        limit=limit,
+        plate=plate,
+        authorized=authorized,
+        camera_id=camera_id,
+        from_date=from_date,
+        to_date=to_date,
+    )
+    return detections

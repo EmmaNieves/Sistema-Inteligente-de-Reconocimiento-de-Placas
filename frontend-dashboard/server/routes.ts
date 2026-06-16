@@ -204,7 +204,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         trafficData,
         categoryData,
         heatmapData,
-        // ✨ AQUÍ AGREGAMOS TUS NUEVOS DATOS REALES
         activeCameras,
         inactiveCameras,
         criticalAlerts,
@@ -452,7 +451,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // ── AUDIENCIAS ────────────────────────────────────────────────────────────────
-// Pega este bloque en routes.ts, justo antes de:  return httpServer;
 
 app.get("/api/audiencias", async (req, res) => {
   if (!await requireAuth(req, res)) return;
@@ -460,7 +458,8 @@ app.get("/api/audiencias", async (req, res) => {
   try {
     const { data, error } = await supabase
       .from("plates")
-      .select("plate_text, camera_id, detection_timestamp, vehicle_type, authorized")
+      // 💡 Se agregó modelo y precio_estimado a la consulta
+      .select("plate_text, camera_id, detection_timestamp, vehicle_type, authorized, modelo, precio_estimado")
       .order("detection_timestamp", { ascending: true });
 
     if (error) return res.status(500).json({ detail: error.message });
@@ -475,8 +474,11 @@ app.get("/api/audiencias", async (req, res) => {
       authorized: boolean;
       hourCounts: number[];       // índice 0-23
       cameraCounts: Map<string, number>;
+      typeCounts: Map<string, number>;
       firstSeen: string;
       lastSeen: string;
+      modelo: string;           // 💡 Nuevo campo
+      precio_estimado: number;  // 💡 Nuevo campo
     }>();
 
     for (const row of rows) {
@@ -490,18 +492,30 @@ app.get("/api/audiencias", async (req, res) => {
         map.set(key, {
           plate_text: key,
           count: 0,
-          vehicle_type: row.vehicle_type || "Sin tipo",
+          vehicle_type: "otro",
           authorized: !!row.authorized,
           hourCounts: Array(24).fill(0),
           cameraCounts: new Map(),
+          typeCounts: new Map(),
           firstSeen: row.detection_timestamp ?? "",
           lastSeen: row.detection_timestamp ?? "",
+          modelo: "",
+          precio_estimado: 0,
         });
       }
 
       const entry = map.get(key)!;
       entry.count += 1;
+      
+      // 💡 Se atrapan los datos tan pronto como aparezca una detección que los tenga
+      if (row.modelo && !entry.modelo) entry.modelo = row.modelo;
+      if (row.precio_estimado && !entry.precio_estimado) entry.precio_estimado = row.precio_estimado;
+
       if (hour >= 0) entry.hourCounts[hour] += 1;
+
+      const vtype = row.vehicle_type || "otro";
+      entry.typeCounts.set(vtype, (entry.typeCounts.get(vtype) ?? 0) + 1);
+
       if (row.camera_id) {
         entry.cameraCounts.set(
           row.camera_id,
@@ -536,7 +550,19 @@ app.get("/api/audiencias", async (req, res) => {
         plate_text: entry.plate_text,
         count: entry.count,
         badge,
-        vehicle_type: entry.vehicle_type,
+        vehicle_type: (() => {
+          let best = "otro";
+          let bestCount = 0;
+          entry.typeCounts.forEach((cnt, type) => {
+            if (type !== "otro" && cnt > bestCount) {
+              best = type;
+              bestCount = cnt;
+            }
+          });
+          return best;
+        })(),
+        modelo: entry.modelo,                    // 💡 Se retorna al frontend
+        precio_estimado: entry.precio_estimado,  // 💡 Se retorna al frontend
         authorized: entry.authorized,
         peak_hour: peakHourLabel,
         top_camera_id: topCamera,

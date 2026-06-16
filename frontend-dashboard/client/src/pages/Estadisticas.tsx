@@ -54,6 +54,34 @@ export default function Estadisticas() {
   // Calculamos el porcentaje real de autorizados
   const authPercentage = totalDetections > 0 ? Math.round((totalAuth / totalDetections) * 100) : 0;
 
+  // 5. EXPORTAR CSV
+  const exportarCSV = () => {
+    const filas = [
+      ["Métrica", "Valor"],
+      ["Total detecciones", totalDetections],
+      ["Autorizados", totalAuth],
+      ["No autorizados", totalDenied],
+      ["Tasa de autorización", `${authPercentage}%`],
+    ];
+
+    if (stats?.categoryData) {
+      filas.push(["", ""]);
+      filas.push(["Categoría", "Autorizados", "Denegados"]);
+      stats.categoryData.forEach((row: any) => {
+        filas.push([row.name, row.auth, row.denied]);
+      });
+    }
+
+    const csvContent = filas.map(f => f.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `reporte_placas_${new Date().toISOString().slice(0,10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Layout>
       <div className="max-w-[1040px] mx-auto pt-4 pb-20 flex flex-col gap-12">
@@ -163,7 +191,7 @@ export default function Estadisticas() {
         <section className="flex flex-col gap-6">
           <div className="flex justify-between items-center">
             <h2 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }} className="font-bold text-[32px] text-[#111827]">Reportes de Acceso</h2>
-            <button className="flex items-center gap-2 border border-[#D1D5DB] rounded-lg px-4 py-2 bg-white text-sm">
+            <button onClick={exportarCSV} className="flex items-center gap-2 border border-[#D1D5DB] rounded-lg px-4 py-2 bg-white text-sm hover:bg-gray-50 cursor-pointer">
               <span>Exportar CSV</span>
               <Download className="w-4 h-4" />
             </button>

@@ -1,4 +1,5 @@
 from typing import Optional
+from datetime import datetime
 
 import cv2
 import numpy as np
@@ -11,6 +12,7 @@ from database import (
     save_detection,
 )
 from processor import detectar_placa
+from whatsapp_notifications import alerta_placa_no_registrada
 
 
 router = APIRouter(prefix="/detections", tags=["Detections"])
@@ -39,7 +41,7 @@ async def detect(file: UploadFile = File(...), camera_id: Optional[str] = None):
         plate_text = plate_data["placa"]
         yolo_confidence = plate_data["confianza_yolo"]
         ocr_confidence = plate_data["confianza_ocr"]
-        vehicle_type = plate_data.get("vehicle_type", "otro")  # 👈 línea nueva
+        vehicle_type = plate_data.get("vehicle_type", "otro")
 
         authorized = is_authorized_plate(plate_text)
         status = "AUTORIZADO" if authorized else "NO AUTORIZADO"
@@ -53,7 +55,7 @@ async def detect(file: UploadFile = File(...), camera_id: Optional[str] = None):
                 image_np=frame,
                 yolo_confidence=yolo_confidence,
                 ocr_confidence=ocr_confidence,
-                vehicle_type=vehicle_type,  # 👈 línea nueva
+                vehicle_type=vehicle_type,
             )
         except Exception as exc:
             print(f"Error guardando deteccion: {exc}")
@@ -68,6 +70,14 @@ async def detect(file: UploadFile = File(...), camera_id: Optional[str] = None):
                 )
             except Exception as exc:
                 print(f"Error creando alerta: {exc}")
+
+            # ── Notificación WhatsApp ──────────────────────────────
+            try:
+                fecha_hora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                camara_nombre = str(camera_id or "Cámara principal")
+                alerta_placa_no_registrada(plate_text, camara_nombre, fecha_hora)
+            except Exception as exc:
+                print(f"Error enviando WhatsApp: {exc}")
 
         results.append(
             {

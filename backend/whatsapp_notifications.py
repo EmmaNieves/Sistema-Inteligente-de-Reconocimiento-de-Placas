@@ -7,40 +7,50 @@ import requests
 import os
 
 # ── Credenciales (poner en .env) ─────────────────────────────
-WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN")        # Token generado en Meta
-PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")      # 1094617207078932
+WHATSAPP_TOKEN   = os.getenv("WHATSAPP_TOKEN")       # Token generado en Meta
+PHONE_NUMBER_ID  = os.getenv("PHONE_NUMBER_ID")      # ej: 1094617207078932
 WHATSAPP_API_URL = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/messages"
 
-# Número del administrador que recibirá las alertas
-ADMIN_PHONE = os.getenv("ADMIN_PHONE")   # ej: 573156337544
+# Números que recibirán las alertas (formato internacional sin +)
+ADMIN_PHONES = [
+    n.strip().lstrip("+")
+    for n in [
+        os.getenv("WHATSAPP_NUMBER_1", "573243333381"),
+        os.getenv("WHATSAPP_NUMBER_2", "573332487255"),
+    ]
+    if n.strip()
+]
+
 
 # ────────────────────────────────────────────────────────────
-# FUNCIÓN BASE — enviar mensaje de texto
+# FUNCIÓN BASE — enviar mensaje a TODOS los admins
 # ────────────────────────────────────────────────────────────
 
-def enviar_whatsapp(numero_destino: str, mensaje: str) -> bool:
-    """
-    Envía un mensaje de texto por WhatsApp.
-    numero_destino: formato internacional sin + (ej: 573156337544)
-    """
+def enviar_whatsapp(mensaje: str) -> bool:
+    """Envía un mensaje de texto a todos los números configurados."""
+    if not WHATSAPP_TOKEN or not PHONE_NUMBER_ID:
+        print("⚠️  WhatsApp no configurado (WHATSAPP_TOKEN / PHONE_NUMBER_ID faltantes)")
+        return False
+
     headers = {
         "Authorization": f"Bearer {WHATSAPP_TOKEN}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
-    body = {
-        "messaging_product": "whatsapp",
-        "to": numero_destino,
-        "type": "text",
-        "text": {"body": mensaje}
-    }
-    response = requests.post(WHATSAPP_API_URL, headers=headers, json=body)
-
-    if response.status_code == 200:
-        print(f"✅ Mensaje enviado a {numero_destino}")
-        return True
-    else:
-        print(f"❌ Error al enviar: {response.text}")
-        return False
+    exito = True
+    for numero in ADMIN_PHONES:
+        body = {
+            "messaging_product": "whatsapp",
+            "to": numero,
+            "type": "text",
+            "text": {"body": mensaje},
+        }
+        response = requests.post(WHATSAPP_API_URL, headers=headers, json=body)
+        if response.status_code == 200:
+            print(f"✅ Mensaje enviado a {numero}")
+        else:
+            print(f"❌ Error al enviar a {numero}: {response.text}")
+            exito = False
+    return exito
 
 
 # ────────────────────────────────────────────────────────────
@@ -48,9 +58,6 @@ def enviar_whatsapp(numero_destino: str, mensaje: str) -> bool:
 # ────────────────────────────────────────────────────────────
 
 def alerta_placa_no_registrada(placa: str, camara: str, fecha_hora: str):
-    """
-    Se llama cuando el sistema detecta una placa que NO está en la BD.
-    """
     mensaje = (
         f"🚨 *ALERTA - Placa No Registrada*\n\n"
         f"📋 Placa: *{placa}*\n"
@@ -58,7 +65,7 @@ def alerta_placa_no_registrada(placa: str, camara: str, fecha_hora: str):
         f"🕐 Fecha/Hora: {fecha_hora}\n\n"
         f"⚠️ Esta placa no está en el sistema. Verifique manualmente."
     )
-    enviar_whatsapp(ADMIN_PHONE, mensaje)
+    enviar_whatsapp(mensaje)
 
 
 # ────────────────────────────────────────────────────────────
@@ -66,9 +73,6 @@ def alerta_placa_no_registrada(placa: str, camara: str, fecha_hora: str):
 # ────────────────────────────────────────────────────────────
 
 def alerta_placa_lista_negra(placa: str, camara: str, fecha_hora: str, motivo: str = ""):
-    """
-    Se llama cuando el sistema detecta una placa que está en lista negra.
-    """
     mensaje = (
         f"🔴 *ALERTA CRÍTICA - Placa Lista Negra*\n\n"
         f"📋 Placa: *{placa}*\n"
@@ -77,7 +81,7 @@ def alerta_placa_lista_negra(placa: str, camara: str, fecha_hora: str, motivo: s
         f"📌 Motivo: {motivo or 'No especificado'}\n\n"
         f"🚫 Acceso DENEGADO automáticamente. Tome acción inmediata."
     )
-    enviar_whatsapp(ADMIN_PHONE, mensaje)
+    enviar_whatsapp(mensaje)
 
 
 # ────────────────────────────────────────────────────────────
@@ -85,9 +89,6 @@ def alerta_placa_lista_negra(placa: str, camara: str, fecha_hora: str, motivo: s
 # ────────────────────────────────────────────────────────────
 
 def notificar_ingreso_autorizado(placa: str, camara: str, fecha_hora: str, propietario: str = ""):
-    """
-    Notificación opcional cuando una placa autorizada ingresa.
-    """
     mensaje = (
         f"✅ *Ingreso Autorizado*\n\n"
         f"📋 Placa: *{placa}*\n"
@@ -95,19 +96,4 @@ def notificar_ingreso_autorizado(placa: str, camara: str, fecha_hora: str, propi
         f"📍 Cámara: {camara}\n"
         f"🕐 Fecha/Hora: {fecha_hora}"
     )
-    enviar_whatsapp(ADMIN_PHONE, mensaje)
-
-
-# ────────────────────────────────────────────────────────────
-# USO DESDE EL BACKEND (el Integrante 3 llama estas funciones)
-# ────────────────────────────────────────────────────────────
-
-# Ejemplo de cómo el Integrante 3 (IA/detección) llama esto:
-#
-# from whatsapp_notifications import alerta_placa_no_registrada, alerta_placa_lista_negra
-#
-# Cuando detecta placa desconocida:
-#   alerta_placa_no_registrada("ABC123", "Camara-01", "2026-06-13 15:30:00")
-#
-# Cuando detecta placa en lista negra:
-#   alerta_placa_lista_negra("XYZ999", "Camara-02", "2026-06-13 15:31:00", "Robo reportado")
+    enviar_whatsapp(mensaje)

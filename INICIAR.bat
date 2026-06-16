@@ -22,7 +22,7 @@ echo SUPABASE_URL=https://ecwomhimxcypilnuatdn.supabase.co
 echo SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjd29taGlteGN5cGlsbnVhdGRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwNzM0MTAsImV4cCI6MjA5MjY0OTQxMH0.uqHcrfBjNTNXaRNbD-BlO6dv6HjmNXnCd9buA9Rn-1w
 echo SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjd29taGlteGN5cGlsbnVhdGRuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzA3MzQxMCwiZXhwIjoyMDkyNjQ5NDEwfQ.ms4i4gRlYIdJOnxIaUkLxDspmPIbZmg1Y5iXcUXFI3I
 echo SUPABASE_STORAGE_BUCKET=plate-images
-echo JWT_SECRET=mi_clave_super_secreta_2024
+echo JWT_SECRET=/uE/ZUYTe3w5j0hE9+e5yUMWWpzgAEpVS36k/unYR5Yzau0QR/OPosTWCtMn9LNphUTXvrFVAtg/QEnu9J5bpg==
 echo WHATSAPP_NUMBER_1=573243333381
 echo CALLMEBOT_APIKEY_1=2995336
 echo WHATSAPP_NUMBER_2=573332487255
@@ -39,7 +39,7 @@ echo [2/5] Configurando variables de entorno del frontend...
 (
 echo SUPABASE_URL=https://ecwomhimxcypilnuatdn.supabase.co
 echo SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjd29taGlteGN5cGlsbnVhdGRuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzA3MzQxMCwiZXhwIjoyMDkyNjQ5NDEwfQ.ms4i4gRlYIdJOnxIaUkLxDspmPIbZmg1Y5iXcUXFI3I
-echo JWT_SECRET=mi_clave_super_secreta_2024
+echo JWT_SECRET=/uE/ZUYTe3w5j0hE9+e5yUMWWpzgAEpVS36k/unYR5Yzau0QR/OPosTWCtMn9LNphUTXvrFVAtg/QEnu9J5bpg==
 ) > frontend-dashboard\.env
 echo        frontend-dashboard\.env creado OK
 echo.

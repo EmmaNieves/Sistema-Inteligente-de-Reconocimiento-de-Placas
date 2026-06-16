@@ -407,15 +407,33 @@ def save_detection(
     return _map_detection(response.data[0]) if response.data else {}
 
 
-def get_all_detections(limit: int = 100) -> List[Dict[str, Any]]:
-    response = (
+def get_all_detections(
+    limit: int = 100,
+    plate: Optional[str] = None,
+    authorized: Optional[bool] = None,
+    camera_id: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    query = (
         _get_client()
         .table("plates")
         .select("*")
         .order("detection_timestamp", desc=True)
         .limit(limit)
-        .execute()
     )
+    if plate:
+        query = query.ilike("plate_text", f"%{_normalize_plate(plate)}%")
+    if authorized is not None:
+        query = query.eq("authorized", authorized)
+    if camera_id:
+        query = query.eq("camera_id", camera_id)
+    if from_date:
+        query = query.gte("detection_timestamp", f"{from_date}T00:00:00+00:00")
+    if to_date:
+        query = query.lte("detection_timestamp", f"{to_date}T23:59:59+00:00")
+
+    response = query.execute()
     return [_map_detection(row) for row in response.data]
 
 

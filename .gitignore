@@ -1,12 +1,48 @@
-venv/
-backend/venv/
-frontend/.next/
-__pycache__/
-*.pyc
+# Variables de entorno — NUNCA subir
 .env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+*.egg
+.Python
+
+# Entornos virtuales
+venv/
+env/
+.venv/
+
+# Debug images generadas por processor.py
+debug_crop.jpg
+debug_processed.jpg
+
+# Base de datos local
+*.db
+*.sqlite3
+
+# Logs
+*.log
+dev-server.out.log
+dev-server.err.log
 
 # Node
 node_modules/
-dist/
-build/
-datasets/
+.next/
+out/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

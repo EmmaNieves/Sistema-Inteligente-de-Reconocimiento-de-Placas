@@ -17,13 +17,13 @@ import os
 import requests
 from urllib.parse import quote
 
-CALLMEBOT_URL = "https://api.callmebot.com/whatsapp.php"
+CALLMEBOT_URL = "https://api.callmebot.com/whatsapp.php?phone=573243333381&text=This+is+a+test&apikey=2995336"
 
 # Pares (numero, apikey) — lee desde .env
 DESTINATARIOS = [
     (
         os.getenv("WHATSAPP_NUMBER_1", "573243333381"),
-        os.getenv("CALLMEBOT_APIKEY_1", ""),
+        os.getenv("CALLMEBOT_APIKEY_1", "2995336"),
     ),
     (
         os.getenv("WHATSAPP_NUMBER_2", "573332487255"),
@@ -39,7 +39,7 @@ def enviar_whatsapp(mensaje: str) -> bool:
     exito = True
     for numero, apikey in DESTINATARIOS:
         if not numero or not apikey:
-            print(f"⚠️  Número o apikey no configurado ({numero}) — omitiendo")
+            print(f" Número o apikey no configurado ({numero}) — omitiendo")
             continue
         try:
             resp = requests.get(
@@ -52,12 +52,12 @@ def enviar_whatsapp(mensaje: str) -> bool:
                 timeout=10,
             )
             if resp.status_code == 200:
-                print(f"✅ WhatsApp enviado a {numero}")
+                print(f"WhatsApp enviado a {numero}")
             else:
-                print(f"❌ Error enviando a {numero}: {resp.status_code} {resp.text}")
+                print(f"Error enviando a {numero}: {resp.status_code} {resp.text}")
                 exito = False
         except Exception as exc:
-            print(f"❌ Excepción enviando a {numero}: {exc}")
+            print(f"Excepción enviando a {numero}: {exc}")
             exito = False
     return exito
 

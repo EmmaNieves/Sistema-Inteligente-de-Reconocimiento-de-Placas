@@ -4,6 +4,7 @@ from paddleocr import PaddleOCR
 import numpy as np
 import cv2
 import re
+import random  # 👈 Importamos la librería para la aleatoriedad
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "runs" / "detect" / "train-5" / "weights" / "best.pt"
@@ -22,6 +23,19 @@ ocr = PaddleOCR(
 
 print("Modelos cargados.")
 
+# 👈 Recuperamos tu lista de modelos disponibles
+MODELOS_DISPONIBLES = [
+    "Chevrolet Spark", "Chevrolet Sail", "Chevrolet Captiva",
+    "Renault Logan", "Renault Sandero", "Renault Duster",
+    "Mazda 3", "Mazda CX-5",
+    "Toyota Corolla", "Toyota Hilux",
+    "Nissan Sentra", "Nissan Frontier",
+    "Kia Picanto", "Kia Sportage",
+    "Hyundai i10", "Hyundai Tucson",
+    "Honda Civic", "Honda CB500",
+    "Yamaha FZ", "Yamaha R15",
+    "Suzuki Gixxer", "Suzuki Swift"
+]
 
 def corregir_placa(text: str) -> str:
     text = re.sub(r"[^A-Z0-9]", "", text.upper())
@@ -81,10 +95,17 @@ def detectar_placa(frame: np.ndarray) -> list:
                 print(f"OCR corregido: '{text}'")
 
                 if prob > 0.3 and re.match(r"^[A-Z]{3}\d{3}$", text):
+                    
+                    # 👈 Generamos los datos aleatorios
+                    modelo_random = random.choice(MODELOS_DISPONIBLES)
+                    precio_random = random.randint(15, 120) * 1000000  # Genera precios entre 15M y 120M
+                    
                     placas.append({
                         "placa": text,
                         "confianza_yolo": round(conf_yolo, 2),
-                        "confianza_ocr": round(prob, 2)
+                        "confianza_ocr": round(prob, 2),
+                        "modelo": modelo_random,          # 👈 Se inyecta al diccionario
+                        "precio_estimado": precio_random  # 👈 Se inyecta al diccionario
                     })
 
     return placas

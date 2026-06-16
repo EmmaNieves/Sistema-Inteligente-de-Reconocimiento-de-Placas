@@ -100,3 +100,10 @@ def notificar_ingreso_autorizado(placa: str, camara: str, fecha_hora: str, propi
         f"🕐 Fecha/Hora: {fecha_hora}"
     )
     enviar_whatsapp(mensaje)
+
+
+# ── TEST rápido (ejecutar directamente para probar) ──────────
+if __name__ == "__main__":
+    print("Probando envío de WhatsApp...")
+    ok = enviar_whatsapp("🧪 Prueba de conexión PlacaControl - sistema activo")
+    print("Resultado:", "✅ OK" if ok else "❌ Falló")

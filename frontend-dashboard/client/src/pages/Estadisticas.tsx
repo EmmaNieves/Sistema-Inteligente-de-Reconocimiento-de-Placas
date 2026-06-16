@@ -54,31 +54,57 @@ export default function Estadisticas() {
   // Calculamos el porcentaje real de autorizados
   const authPercentage = totalDetections > 0 ? Math.round((totalAuth / totalDetections) * 100) : 0;
 
-  // 5. EXPORTAR CSV
-  const exportarCSV = () => {
-    const filas = [
-      ["Métrica", "Valor"],
-      ["Total detecciones", totalDetections],
-      ["Autorizados", totalAuth],
-      ["No autorizados", totalDenied],
+  // 5. EXPORTAR CSV — con BOM para que Excel lo lea bien
+  const exportarCSV = async () => {
+    // Traer detecciones reales del backend
+    let detections: any[] = [];
+    try {
+      detections = await api.getDetections({ });
+    } catch (_) {}
+
+    // Hoja 1: Resumen general
+    const resumen = [
+      ["REPORTE DE ACCESO VEHICULAR - PlacaControl"],
+      [`Generado el: ${new Date().toLocaleString("es-CO")}`],
+      [""],
+      ["RESUMEN GENERAL", ""],
+      ["Total de detecciones", totalDetections],
+      ["Vehículos autorizados", totalAuth],
+      ["Vehículos no autorizados", totalDenied],
       ["Tasa de autorización", `${authPercentage}%`],
+      [""],
+      ["ACCESO POR TIPO DE VEHÍCULO", "", ""],
+      ["Tipo", "Autorizados", "Denegados"],
+      ...(stats?.categoryData || []).map((r: any) => [r.name, r.auth, r.denied]),
+      [""],
+      ["DETECCIONES RECIENTES", "", "", "", ""],
+      ["Placa", "Estado", "Tipo vehículo", "Confianza OCR", "Fecha y hora"],
+      ...detections.slice(0, 200).map((d: any) => [
+        d.plate_text || d.plate || "",
+        d.authorized ? "AUTORIZADO" : "NO AUTORIZADO",
+        d.vehicle_type || "—",
+        d.ocr_confidence != null ? `${Math.round(d.ocr_confidence * 100)}%` : "—",
+        d.detection_timestamp
+          ? new Date(d.detection_timestamp).toLocaleString("es-CO")
+          : "—",
+      ]),
     ];
 
-    if (stats?.categoryData) {
-      filas.push(["", ""]);
-      filas.push(["Categoría", "Autorizados", "Denegados"]);
-      stats.categoryData.forEach((row: any) => {
-        filas.push([row.name, row.auth, row.denied]);
-      });
-    }
+    const csvRows = resumen.map(fila =>
+      fila.map((celda: any) => `"${String(celda).replace(/"/g, '""')}"`).join(";")
+    );
 
-    const csvContent = filas.map(f => f.join(",")).join("\n");
+    // BOM UTF-8 para que Excel abra con tildes correctamente
+    const BOM = "\uFEFF";
+    const csvContent = BOM + csvRows.join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `reporte_placas_${new Date().toISOString().slice(0,10)}.csv`;
+    link.download = `reporte_placas_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
 

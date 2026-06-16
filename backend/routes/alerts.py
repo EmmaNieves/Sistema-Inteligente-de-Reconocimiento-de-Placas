@@ -13,3 +13,10 @@ def list_alerts(unresolved_only: bool = False):
 def mark_resolved(alert_id: int):
     resolve_alert(alert_id)
     return {"ok": True, "alert_id": alert_id}
+
+
+@router.get("/count")
+def count_alerts():
+    from database import get_all_alerts
+    alerts = get_all_alerts(only_unresolved=True)
+    return {"unresolved": len(alerts)}

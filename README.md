@@ -192,3 +192,6 @@ Este proyecto utilizó las siguientes herramientas de IA durante su desarrollo:
 **Universidad:** Universidad de La Guajira  
 **Docente:** Eduardo Sierra  
 **Período:** 2026-I
+
+---
+> Última actualización: notificaciones WhatsApp vía CallMeBot configuradas y funcionando.

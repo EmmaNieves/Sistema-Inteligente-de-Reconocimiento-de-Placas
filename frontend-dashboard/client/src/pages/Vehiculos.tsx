@@ -17,7 +17,21 @@ import { es } from "date-fns/locale";
 
 const VEHICLE_TYPES = ["automovil", "camioneta", "motocicleta", "camion", "bus", "otro"];
 
-const emptyForm: VehicleCreate = { plate: "", owner: "", vehicle_type: "automovil", observations: "" };
+const VEHICLE_MODELS = [
+  "Chevrolet Spark", "Chevrolet Sail", "Chevrolet Captiva",
+  "Renault Logan", "Renault Sandero", "Renault Duster",
+  "Mazda 3", "Mazda CX-5",
+  "Toyota Corolla", "Toyota Hilux",
+  "Nissan Sentra", "Nissan Frontier",
+  "Kia Picanto", "Kia Sportage",
+  "Hyundai i10", "Hyundai Tucson",
+  "Honda Civic", "Honda CB500",
+  "Yamaha FZ", "Yamaha R15",
+  "Suzuki Gixxer", "Suzuki Swift",
+  "Otro"
+];
+
+const emptyForm: VehicleCreate = { plate: "", owner: "", vehicle_type: "automovil", observations: "", modelo: "" };
 
 export default function Vehiculos() {
   const { toast } = useToast();
@@ -66,7 +80,7 @@ export default function Vehiculos() {
   const openCreate = () => { setEditing(null); setForm(emptyForm); setDialogOpen(true); };
   const openEdit = (v: Vehicle) => {
     setEditing(v);
-    setForm({ plate: v.plate, owner: v.owner, vehicle_type: v.vehicle_type, observations: v.observations || "" });
+    setForm({ plate: v.plate, owner: v.owner, vehicle_type: v.vehicle_type, observations: v.observations || "", modelo: v.modelo || "" });
     setDialogOpen(true);
   };
   const closeDialog = () => { setDialogOpen(false); setEditing(null); setForm(emptyForm); };
@@ -199,6 +213,7 @@ export default function Vehiculos() {
                 className="rounded-xl"
               />
             </div>
+            
             <div className="space-y-1.5">
               <Label>Tipo de Vehículo *</Label>
               <Select value={form.vehicle_type} onValueChange={(v) => setForm(f => ({ ...f, vehicle_type: v }))}>
@@ -212,6 +227,22 @@ export default function Vehiculos() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* NUEVO BLOQUE: Modelo del Vehículo */}
+            <div className="space-y-1.5">
+              <Label>Modelo de Vehículo</Label>
+              <Select value={form.modelo} onValueChange={(v) => setForm(f => ({ ...f, modelo: v }))}>
+                <SelectTrigger className="rounded-xl" data-testid="select-vehicle-model">
+                  <SelectValue placeholder="Seleccione un modelo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {VEHICLE_MODELS.map(m => (
+                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="v-obs">Observaciones</Label>
               <Textarea

@@ -3,8 +3,6 @@ import { Layout } from "@/components/Layout";
 import { api } from "@/lib/api";
 import { Loader2, AlertCircle } from "lucide-react";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
 type Badge = "Residente" | "Visitante" | "Tránsito";
 
 interface PlacaAudiencia {
@@ -15,6 +13,8 @@ interface PlacaAudiencia {
   authorized: boolean;
   peak_hour: string;
   top_camera_id: string;
+  modelo: string;
+  precio_estimado: number;
   first_seen: string;
   last_seen: string;
 }
@@ -28,8 +28,6 @@ interface AudienciasData {
   placas: PlacaAudiencia[];
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 const BADGE_STYLES: Record<Badge, string> = {
   Residente: "bg-[#DCFCE7] text-[#15803D] border border-[#BBF7D0]",
   Visitante: "bg-[#E0F2FE] text-[#0369A1] border border-[#BAE6FD]",
@@ -42,70 +40,87 @@ const BADGE_DOT: Record<Badge, string> = {
   Tránsito:  "bg-[#9CA3AF]",
 };
 
-function fmt(iso: string): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleString("es-CO", {
-    day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
-  });
-}
-
-// ── Impacto publicitario ───────────────────────────────────────────────────────
-// Factor de visibilidad por tipo de vehículo:
-// camión/bus = 1 (conductor solo), auto/moto = 1.4 (más pasajeros promedio)
-// Residentes valen más (audiencia recurrente = mayor recordación de marca)
-
-const VEHICLE_FACTOR: Record<string, number> = {
-  car:        1.4,
-  moto:       1.0,
-  bus:        8.0,   // transporte público
-  truck:      1.2,
-  "Sin tipo": 1.2,
-};
-
-interface ImpresionHora {
-  hour: string;
-  impresiones: number;
-  cpm: number;        // costo por mil impresiones estimado (USD)
-  nivel: "Alta" | "Media" | "Baja";
-}
-
-function calcImpacto(placas: PlacaAudiencia[]): ImpresionHora[] {
-  const hourMap = new Map<string, { imp: number; recurrentes: number }>();
-
-  for (const p of placas) {
-    const h = p.peak_hour;
-    if (!h) continue;
-    const factor = VEHICLE_FACTOR[p.vehicle_type] ?? 1.2;
-    const recurrencyBonus = p.badge === "Residente" ? 1.5 : p.badge === "Visitante" ? 1.15 : 1.0;
-    const imp = p.count * factor * recurrencyBonus;
-    const prev = hourMap.get(h) ?? { imp: 0, recurrentes: 0 };
-    prev.imp += imp;
-    if (p.badge !== "Tránsito") prev.recurrentes += 1;
-    hourMap.set(h, prev);
-  }
-
-  const rows = Array.from(hourMap.entries())
-    .map(([hour, v]) => {
-      const impresiones = Math.round(v.imp);
-      // CPM base $2 USD, sube con recurrencia
-      const cpm = Number((2 + v.recurrentes * 0.3).toFixed(2));
-      const nivel: "Alta" | "Media" | "Baja" =
-        impresiones >= 50 ? "Alta" : impresiones >= 20 ? "Media" : "Baja";
-      return { hour, impresiones, cpm, nivel };
-    })
-    .sort((a, b) => b.impresiones - a.impresiones);
-
-  return rows;
-}
-
 const NIVEL_STYLES = {
   Alta:  "bg-[#DCFCE7] text-[#15803D] border border-[#BBF7D0]",
   Media: "bg-[#FEF9C3] text-[#854D0E] border border-[#FEF08A]",
   Baja:  "bg-[#F3F4F6] text-[#4B5563] border border-[#E5E7EB]",
 };
 
-// ── Component ─────────────────────────────────────────────────────────────────
+function fmt(iso: string): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("es-CO", {
+    day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function formatCOP(value: number): string {
+  if (!value) return "—";
+  return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(value);
+}
+
+function getSegmentoByPrecio(precio: number): { label: string; color: string } {
+  if (precio >= 80000000) return { label: "Alto", color: "text-[#15803D]" };
+  if (precio >= 50000000) return { label: "Medio-Alto", color: "text-[#0369A1]" };
+  if (precio >= 30000000) return { label: "Medio", color: "text-[#FC6C03]" };
+  if (precio >= 10000000) return { label: "Bajo-Medio", color: "text-[#854D0E]" };
+  if (precio > 0) return { label: "Bajo", color: "text-[#B91C1C]" };
+  return { label: "Sin datos", color: "text-[#9CA3AF]" };
+}
+
+const VEHICLE_FACTOR: Record<string, number> = {
+  automovil: 1.4,
+  motocicleta: 1.0,
+  bus: 8.0,
+  camion: 1.2,
+  otro: 1.2,
+};
+
+interface ImpresionHora {
+  hour: string;
+  impresiones: number;
+  cpm: number;
+  nivel: "Alta" | "Media" | "Baja";
+}
+
+function calcImpacto(placas: PlacaAudiencia[]): ImpresionHora[] {
+  const hourMap = new Map<string, { imp: number; recurrentes: number }>();
+  for (const p of placas) {
+    const h = p.peak_hour;
+    if (!h) continue;
+    const factor = VEHICLE_FACTOR[p.vehicle_type] ?? 1.2;
+    const bonus = p.badge === "Residente" ? 1.5 : p.badge === "Visitante" ? 1.15 : 1.0;
+    const imp = p.count * factor * bonus;
+    const prev = hourMap.get(h) ?? { imp: 0, recurrentes: 0 };
+    prev.imp += imp;
+    if (p.badge !== "Tránsito") prev.recurrentes += 1;
+    hourMap.set(h, prev);
+  }
+  return Array.from(hourMap.entries())
+    .map(([hour, v]) => {
+      const impresiones = Math.round(v.imp);
+      const cpm = Number((2 + v.recurrentes * 0.3).toFixed(2));
+      const nivel: "Alta" | "Media" | "Baja" = impresiones >= 50 ? "Alta" : impresiones >= 20 ? "Media" : "Baja";
+      return { hour, impresiones, cpm, nivel };
+    })
+    .sort((a, b) => b.impresiones - a.impresiones);
+}
+
+function buildInsight(d: AudienciasData): string {
+  if (!d || d.total_placas === 0) return "Sin datos suficientes para generar un insight.";
+  const dominant = d.residentes >= d.visitantes && d.residentes >= d.transito
+    ? "residentes" : d.visitantes >= d.transito ? "visitantes" : "tránsito de paso";
+  const topType = d.placas.reduce((acc, p) => {
+    acc[p.vehicle_type] = (acc[p.vehicle_type] ?? 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  const topVehicle = Object.entries(topType).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "vehículos";
+  const recRate = d.recurrence_rate;
+  if (dominant === "residentes" && recRate > 60)
+    return `Zona de alta recurrencia (${recRate}%). Flujo dominante: ${topVehicle}. Perfil ideal para negocios de servicios frecuentes: talleres, tiendas de conveniencia o estaciones de servicio.`;
+  if (dominant === "visitantes")
+    return `Zona mixta con ${recRate}% de recurrencia. Predominan visitantes con vehículos tipo ${topVehicle}. Adecuada para comercio ocasional o puntos de paso con oferta diversa.`;
+  return `Zona de tránsito (recurrencia ${recRate}%). Alta rotación de ${topVehicle}. Oportunidad para publicidad exterior o servicios rápidos orientados a conductores en paso.`;
+}
 
 export default function Audiencias() {
   const [data, setData] = useState<AudienciasData | null>(null);
@@ -127,25 +142,6 @@ export default function Audiencias() {
     const matchSearch = p.plate_text.toLowerCase().includes(search.toLowerCase());
     return matchBadge && matchSearch;
   });
-
-  function buildInsight(d: AudienciasData): string {
-    if (!d || d.total_placas === 0) return "Sin datos suficientes para generar un insight.";
-    const dominantBadge = d.residentes >= d.visitantes && d.residentes >= d.transito
-      ? "residentes" : d.visitantes >= d.transito ? "visitantes" : "tránsito de paso";
-    const topType = d.placas.reduce((acc, p) => {
-      acc[p.vehicle_type] = (acc[p.vehicle_type] ?? 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    const topVehicle = Object.entries(topType).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "vehículos";
-    const recRate = d.recurrence_rate;
-    if (dominantBadge === "residentes" && recRate > 60) {
-      return `Zona de alta recurrencia (${recRate}%). Flujo dominante: ${topVehicle}. Perfil ideal para negocios de servicios frecuentes: talleres, tiendas de conveniencia o estaciones de servicio.`;
-    }
-    if (dominantBadge === "visitantes") {
-      return `Zona mixta con ${recRate}% de recurrencia. Predominan visitantes con vehículos tipo ${topVehicle}. Adecuada para comercio ocasional o puntos de paso con oferta diversa.`;
-    }
-    return `Zona de tránsito (recurrencia ${recRate}%). Alta rotación de ${topVehicle}. Oportunidad para publicidad exterior o servicios rápidos orientados a conductores en paso.`;
-  }
 
   if (loading) {
     return (
@@ -180,6 +176,34 @@ export default function Audiencias() {
     ? Number((impactoRows.reduce((s, r) => s + r.cpm, 0) / impactoRows.length).toFixed(2))
     : 0;
 
+  // Análisis por precio
+  const placasConPrecio = data.placas.filter(p => p.precio_estimado > 0);
+  const precioPromedio = placasConPrecio.length > 0
+    ? Math.round(placasConPrecio.reduce((s, p) => s + p.precio_estimado, 0) / placasConPrecio.length)
+    : 0;
+
+  const segmentoCounts = { Alto: 0, "Medio-Alto": 0, Medio: 0, "Bajo-Medio": 0, Bajo: 0 };
+  for (const p of data.placas) {
+    const seg = getSegmentoByPrecio(p.precio_estimado).label;
+    if (seg in segmentoCounts) segmentoCounts[seg as keyof typeof segmentoCounts] += 1;
+  }
+  const totalSegmentos = Object.values(segmentoCounts).reduce((a, b) => a + b, 0) || 1;
+  const segmentoDominante = Object.entries(segmentoCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "Medio";
+
+  const modeloMasFrecuente = data.placas
+    .filter(p => p.modelo)
+    .reduce((acc, p) => {
+      acc[p.modelo] = (acc[p.modelo] ?? 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+  const topModelo = Object.entries(modeloMasFrecuente).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
+
+  // Contar tipos
+  const motos = data.placas.filter(p => p.vehicle_type === "motocicleta").length;
+  const autos = data.placas.filter(p => p.vehicle_type === "automovil").length;
+  const otros = data.placas.filter(p => !["motocicleta", "automovil"].includes(p.vehicle_type)).length;
+  const total = data.total_placas || 1;
+
   return (
     <Layout>
       <div className="max-w-[1040px] mx-auto pt-4 pb-20 flex flex-col gap-8">
@@ -190,7 +214,7 @@ export default function Audiencias() {
             Audiencias y Perfilamiento
           </h1>
           <p className="text-[14px] text-[#6B7280]">
-            Análisis de recurrencia de placas y perfilamiento por comportamiento de conductores.
+            Análisis de recurrencia, tipo de usuarios y poder adquisitivo por zona.
           </p>
         </div>
 
@@ -211,118 +235,98 @@ export default function Audiencias() {
           ))}
         </div>
 
-        {/* VEHICLE PROFILE BY ZONE (Pendiente 8) */}
+        {/* Perfil de vehículos por zona */}
         <div className="bg-white border border-[#F3F4F6] shadow-sm rounded-2xl p-6 flex flex-col gap-4">
           <h2 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }} className="font-bold text-[18px] text-[#1F2937]">
             Perfil de vehículos por zona
           </h2>
           <p className="text-[13px] text-[#6B7280]">
-            Distribución de tipos de vehículos y estimación de segmento socioeconómico.
+            Distribución de tipos de vehículos detectados.
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
-            <div className="bg-[#F9FAFB] border border-[#F3F4F6] rounded-xl p-4">
-              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-2">Motos</span>
-              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-2xl font-bold text-[#111827]">
-                {data.placas.filter(p => p.vehicle_type.toLowerCase().includes("moto")).length}
-              </span>
-            </div>
-            <div className="bg-[#F9FAFB] border border-[#F3F4F6] rounded-xl p-4">
-              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-2">Autos compactos</span>
-              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-2xl font-bold text-[#111827]">
-                {data.placas.filter(p => p.vehicle_type.toLowerCase().includes("compacto") || p.vehicle_type.toLowerCase().includes("sedan")).length}
-              </span>
-            </div>
-            <div className="bg-[#F9FAFB] border border-[#F3F4F6] rounded-xl p-4">
-              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-2">Camionetas/SUV</span>
-              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-2xl font-bold text-[#111827]">
-                {data.placas.filter(p => p.vehicle_type.toLowerCase().includes("camioneta") || p.vehicle_type.toLowerCase().includes("suv")).length}
-              </span>
-            </div>
-            <div className="bg-[#F9FAFB] border border-[#F3F4F6] rounded-xl p-4">
-              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-2">Camiones</span>
-              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-2xl font-bold text-[#111827]">
-                {data.placas.filter(p => p.vehicle_type.toLowerCase().includes("camion") || p.vehicle_type.toLowerCase().includes("truck")).length}
-              </span>
-            </div>
-          </div>
-          <div className="bg-[#FFF7ED] border border-[#FC6C03] rounded-xl p-4 mt-2">
-            <p className="text-[13px] font-semibold text-[#111827]">Segmento socioeconómico estimado:</p>
-            <p className="text-[14px] font-bold text-[#FC6C03] mt-1">
-              {(() => {
-                const motos = data.placas.filter(p => p.vehicle_type.toLowerCase().includes("moto")).length;
-                const autos = data.placas.filter(p => p.vehicle_type.toLowerCase().includes("compacto") || p.vehicle_type.toLowerCase().includes("sedan")).length;
-                const suv = data.placas.filter(p => p.vehicle_type.toLowerCase().includes("camioneta") || p.vehicle_type.toLowerCase().includes("suv")).length;
-                const camiones = data.placas.filter(p => p.vehicle_type.toLowerCase().includes("camion") || p.vehicle_type.toLowerCase().includes("truck")).length;
-                const total = data.total_placas || 1;
-                const motoPercent = (motos / total) * 100;
-                const suvPercent = (suv / total) * 100;
-                const truckPercent = (camiones / total) * 100;
-
-                if (motoPercent > 40) return "Bajo";
-                if (truckPercent > 30) return "Bajo-Medio";
-                if (suvPercent > 50) return "Medio-Alto";
-                if (autos > 60 && motoPercent < 10) return "Medio-Alto";
-                if (suvPercent > 30 && motoPercent < 5) return "Alto";
-                return "Medio";
-              })()}
-            </p>
+          <div className="grid grid-cols-3 gap-4 mt-2">
+            {[
+              { label: "Motos", value: motos, pct: Math.round((motos / total) * 100) },
+              { label: "Automóviles", value: autos, pct: Math.round((autos / total) * 100) },
+              { label: "Otros", value: otros, pct: Math.round((otros / total) * 100) },
+            ].map(item => (
+              <div key={item.label} className="bg-[#F9FAFB] border border-[#F3F4F6] rounded-xl p-4">
+                <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-2">{item.label}</span>
+                <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-2xl font-bold text-[#111827]">{item.value}</span>
+                <span className="text-[12px] text-[#9CA3AF] ml-2">{item.pct}%</span>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* VEHICLE PROFILE BY ZONE (Pendiente 8) */}
-        <div className="bg-white border border-[#F3F4F6] shadow-sm rounded-2xl p-6 flex flex-col gap-4">
-          <h2 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }} className="font-bold text-[18px] text-[#1F2937]">
-            Perfil de vehículos por zona
-          </h2>
-          <p className="text-[13px] text-[#6B7280]">
-            Distribución de tipos de vehículos y estimación de segmento socioeconómico.
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+        {/* Análisis de poder adquisitivo */}
+        <div className="bg-white border border-[#F3F4F6] shadow-sm rounded-2xl p-6 flex flex-col gap-5">
+          <div>
+            <h2 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }} className="font-bold text-[18px] text-[#1F2937]">
+              Análisis de poder adquisitivo
+            </h2>
+            <p className="text-[13px] text-[#6B7280] mt-1">
+              Estimado con base en el precio promedio de los vehículos detectados.
+            </p>
+          </div>
+
+          {/* KPIs de precio */}
+          <div className="grid grid-cols-3 gap-4">
             <div className="bg-[#F9FAFB] border border-[#F3F4F6] rounded-xl p-4">
-              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-2">Motos</span>
-              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-2xl font-bold text-[#111827]">
-                {data.placas.filter(p => p.vehicle_type.toLowerCase().includes("moto")).length}
+              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-1">Precio promedio</span>
+              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-xl font-bold text-[#111827]">
+                {formatCOP(precioPromedio)}
               </span>
             </div>
             <div className="bg-[#F9FAFB] border border-[#F3F4F6] rounded-xl p-4">
-              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-2">Autos compactos</span>
-              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-2xl font-bold text-[#111827]">
-                {data.placas.filter(p => p.vehicle_type.toLowerCase().includes("compacto") || p.vehicle_type.toLowerCase().includes("sedan")).length}
+              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-1">Segmento dominante</span>
+              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-xl font-bold text-[#FC6C03]">
+                {segmentoDominante}
               </span>
             </div>
             <div className="bg-[#F9FAFB] border border-[#F3F4F6] rounded-xl p-4">
-              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-2">Camionetas/SUV</span>
-              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-2xl font-bold text-[#111827]">
-                {data.placas.filter(p => p.vehicle_type.toLowerCase().includes("camioneta") || p.vehicle_type.toLowerCase().includes("suv")).length}
-              </span>
-            </div>
-            <div className="bg-[#F9FAFB] border border-[#F3F4F6] rounded-xl p-4">
-              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-2">Camiones</span>
-              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-2xl font-bold text-[#111827]">
-                {data.placas.filter(p => p.vehicle_type.toLowerCase().includes("camion") || p.vehicle_type.toLowerCase().includes("truck")).length}
+              <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-1">Modelo más frecuente</span>
+              <span style={{ fontFamily: "'Geist', sans-serif" }} className="text-[15px] font-bold text-[#111827]">
+                {topModelo}
               </span>
             </div>
           </div>
-          <div className="bg-[#FFF7ED] border border-[#FC6C03] rounded-xl p-4 mt-2">
-            <p className="text-[13px] font-semibold text-[#111827]">Segmento socioeconómico estimado:</p>
-            <p className="text-[14px] font-bold text-[#FC6C03] mt-1">
-              {(() => {
-                const motos = data.placas.filter(p => p.vehicle_type.toLowerCase().includes("moto")).length;
-                const autos = data.placas.filter(p => p.vehicle_type.toLowerCase().includes("compacto") || p.vehicle_type.toLowerCase().includes("sedan")).length;
-                const suv = data.placas.filter(p => p.vehicle_type.toLowerCase().includes("camioneta") || p.vehicle_type.toLowerCase().includes("suv")).length;
-                const camiones = data.placas.filter(p => p.vehicle_type.toLowerCase().includes("camion") || p.vehicle_type.toLowerCase().includes("truck")).length;
-                const total = data.total_placas || 1;
-                const motoPercent = (motos / total) * 100;
-                const suvPercent = (suv / total) * 100;
-                const truckPercent = (camiones / total) * 100;
 
-                if (motoPercent > 40) return "Bajo";
-                if (truckPercent > 30) return "Bajo-Medio";
-                if (suvPercent > 50) return "Medio-Alto";
-                if (autos > 60 && motoPercent < 10) return "Medio-Alto";
-                if (suvPercent > 30 && motoPercent < 5) return "Alto";
-                return "Medio";
-              })()}
+          {/* Barras por segmento */}
+          <div className="flex flex-col gap-3">
+            {Object.entries(segmentoCounts).map(([seg, count]) => {
+              const pct = Math.round((count / totalSegmentos) * 100);
+              const colors: Record<string, string> = {
+                Alto: "bg-[#15803D]",
+                "Medio-Alto": "bg-[#0369A1]",
+                Medio: "bg-[#FC6C03]",
+                "Bajo-Medio": "bg-[#854D0E]",
+                Bajo: "bg-[#9CA3AF]",
+              };
+              return (
+                <div key={seg} className="flex items-center gap-4">
+                  <span className="w-24 text-[13px] font-medium text-[#4B5563] shrink-0">{seg}</span>
+                  <div className="flex-1 h-2 bg-[#F3F4F6] rounded-full overflow-hidden">
+                    <div className={`h-full ${colors[seg]} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <span style={{ fontFamily: "'Geist', sans-serif" }} className="w-10 text-[13px] font-semibold text-[#1F2937] text-right">{count}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Insight de segmento */}
+          <div className="bg-[#FFF7ED] border border-[#FC6C03] rounded-xl p-4">
+            <span className="text-[11px] font-semibold uppercase text-[#FC6C03] block mb-2">Perfil de usuario de zona</span>
+            <p className="text-[14px] text-[#1F2937] leading-relaxed">
+              {segmentoDominante === "Alto"
+                ? `Zona de alto poder adquisitivo. Precio promedio de vehículos: ${formatCOP(precioPromedio)}. Perfil ideal para marcas premium, servicios especializados y experiencias exclusivas.`
+                : segmentoDominante === "Medio-Alto"
+                ? `Zona de poder adquisitivo medio-alto. Precio promedio: ${formatCOP(precioPromedio)}. Adecuada para comercio establecido, servicios financieros y tecnología de consumo.`
+                : segmentoDominante === "Medio"
+                ? `Zona de clase media. Precio promedio: ${formatCOP(precioPromedio)}. Oportunidad para supermercados, restaurantes familiares y servicios cotidianos.`
+                : segmentoDominante === "Bajo-Medio"
+                ? `Zona popular con vehículos de precio promedio ${formatCOP(precioPromedio)}. Enfocarse en precios competitivos, productos de alta rotación y movilidad.`
+                : `Zona de movilidad activa. Predominan motos y vehículos de bajo costo. Precio promedio: ${formatCOP(precioPromedio)}. Servicios rápidos y económicos tienen alta demanda aquí.`}
             </p>
           </div>
         </div>
@@ -375,20 +379,16 @@ export default function Audiencias() {
           </div>
         </div>
 
-        {/* ── IMPACTO PUBLICITARIO ────────────────────────────────────────────── */}
+        {/* Impacto publicitario */}
         <div className="bg-white border border-[#F3F4F6] shadow-sm rounded-2xl p-6 flex flex-col gap-6">
-
-          {/* Título + descripción */}
           <div>
             <h2 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }} className="font-bold text-[18px] text-[#1F2937]">
               Impacto publicitario estimado
             </h2>
             <p className="text-[13px] text-[#6B7280] mt-1">
-              Impresiones calculadas por hora pico según tipo de vehículo y recurrencia. CPM en USD.
+              Impresiones por hora pico según tipo de vehículo y recurrencia. CPM en USD.
             </p>
           </div>
-
-          {/* KPIs de impacto */}
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-[#F9FAFB] border border-[#F3F4F6] rounded-xl p-4">
               <span className="text-[11px] text-[#6B7280] uppercase tracking-widest block mb-1">Total impresiones</span>
@@ -409,8 +409,6 @@ export default function Audiencias() {
               </span>
             </div>
           </div>
-
-          {/* Tabla por hora */}
           {impactoRows.length === 0 ? (
             <p className="text-[13px] text-[#6B7280] text-center py-6">Sin datos para calcular impacto.</p>
           ) : (
@@ -419,9 +417,7 @@ export default function Audiencias() {
                 <thead>
                   <tr>
                     {["Hora pico", "Impresiones est.", "CPM (USD)", "Nivel de tráfico"].map(h => (
-                      <th key={h} className="text-[11px] font-semibold text-[#9CA3AF] uppercase px-4 py-3 border-b border-[#F3F4F6]">
-                        {h}
-                      </th>
+                      <th key={h} className="text-[11px] font-semibold text-[#9CA3AF] uppercase px-4 py-3 border-b border-[#F3F4F6]">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -430,20 +426,12 @@ export default function Audiencias() {
                     <tr key={row.hour} className={`border-b border-[#F9FAFB] hover:bg-gray-50/50 transition-colors ${i === 0 ? "bg-[#FFF7ED]" : ""}`}>
                       <td style={{ fontFamily: "'Geist', sans-serif" }} className="px-4 py-3 text-[14px] font-bold text-[#1F2937]">
                         {row.hour}
-                        {i === 0 && (
-                          <span className="ml-2 text-[10px] font-semibold bg-[#FC6C03] text-white px-1.5 py-0.5 rounded">TOP</span>
-                        )}
+                        {i === 0 && <span className="ml-2 text-[10px] font-semibold bg-[#FC6C03] text-white px-1.5 py-0.5 rounded">TOP</span>}
                       </td>
-                      <td style={{ fontFamily: "'Geist', sans-serif" }} className="px-4 py-3 text-[13px] font-semibold text-[#1F2937]">
-                        {row.impresiones.toLocaleString("es-CO")}
-                      </td>
-                      <td style={{ fontFamily: "'Geist', sans-serif" }} className="px-4 py-3 text-[13px] text-[#0369A1] font-medium">
-                        ${row.cpm}
-                      </td>
+                      <td style={{ fontFamily: "'Geist', sans-serif" }} className="px-4 py-3 text-[13px] font-semibold text-[#1F2937]">{row.impresiones.toLocaleString("es-CO")}</td>
+                      <td style={{ fontFamily: "'Geist', sans-serif" }} className="px-4 py-3 text-[13px] text-[#0369A1] font-medium">${row.cpm}</td>
                       <td className="px-4 py-3">
-                        <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${NIVEL_STYLES[row.nivel]}`}>
-                          {row.nivel}
-                        </span>
+                        <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${NIVEL_STYLES[row.nivel]}`}>{row.nivel}</span>
                       </td>
                     </tr>
                   ))}
@@ -451,10 +439,8 @@ export default function Audiencias() {
               </table>
             </div>
           )}
-
-          {/* Nota metodológica */}
           <p className="text-[11px] text-[#9CA3AF] border-t border-[#F3F4F6] pt-4">
-            Metodología: impresiones = detecciones × factor de ocupación por tipo de vehículo × bonificación por recurrencia. CPM base $2 USD, ajustado por audiencia recurrente. Estimados con fines de inteligencia comercial.
+            Metodología: impresiones = detecciones × factor de ocupación × bonificación por recurrencia. CPM base $2 USD. Estimados con fines de inteligencia comercial.
           </p>
         </div>
 
@@ -466,9 +452,7 @@ export default function Audiencias() {
                 key={b}
                 onClick={() => setFilter(b)}
                 className={`text-[13px] font-medium px-4 py-1.5 rounded-full border transition-colors ${
-                  filter === b
-                    ? "bg-[#FC6C03] border-[#FC6C03] text-white shadow-sm"
-                    : "bg-white border-[#D1D5DB] text-[#4B5563] hover:bg-gray-50"
+                  filter === b ? "bg-[#FC6C03] border-[#FC6C03] text-white shadow-sm" : "bg-white border-[#D1D5DB] text-[#4B5563] hover:bg-gray-50"
                 }`}
               >
                 {b}
@@ -495,44 +479,46 @@ export default function Audiencias() {
             <table className="w-full text-left">
               <thead>
                 <tr>
-                  {["Placa", "Tipo", "Perfil", "Detecciones", "Hora pico", "Primera vez", "Última vez", "Autorizado"].map(h => (
-                    <th key={h} className="text-[11px] font-semibold text-[#9CA3AF] uppercase px-6 py-4 border-b border-[#F3F4F6]">
-                      {h}
-                    </th>
+                  {["Placa", "Tipo", "Modelo", "Precio est.", "Segmento", "Perfil", "Detecciones", "Hora pico", "Autorizado"].map(h => (
+                    <th key={h} className="text-[11px] font-semibold text-[#9CA3AF] uppercase px-4 py-4 border-b border-[#F3F4F6]">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {placas.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center text-[#6B7280] py-10 text-[13px]">
+                    <td colSpan={9} className="text-center text-[#6B7280] py-10 text-[13px]">
                       No se encontraron placas que coincidan con los filtros.
                     </td>
                   </tr>
                 ) : (
-                  placas.map(p => (
-                    <tr key={p.plate_text} className="border-b border-[#F9FAFB] hover:bg-gray-50/50 transition-colors">
-                      <td style={{ fontFamily: "'Geist', sans-serif" }} className="px-6 py-3 text-[14px] font-semibold tracking-wider text-[#1F2937]">
-                        {p.plate_text}
-                      </td>
-                      <td className="px-6 py-3 text-[13px] text-[#4B5563] capitalize">{p.vehicle_type}</td>
-                      <td className="px-6 py-3">
-                        <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${BADGE_STYLES[p.badge]}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${BADGE_DOT[p.badge]}`} />
-                          {p.badge}
-                        </span>
-                      </td>
-                      <td style={{ fontFamily: "'Geist', sans-serif" }} className="px-6 py-3 text-[13px] font-bold text-[#FC6C03]">{p.count}</td>
-                      <td style={{ fontFamily: "'Geist', sans-serif" }} className="px-6 py-3 text-[13px] text-[#1F2937]">{p.peak_hour}</td>
-                      <td className="px-6 py-3 text-[12px] text-[#6B7280]">{fmt(p.first_seen)}</td>
-                      <td className="px-6 py-3 text-[12px] text-[#6B7280]">{fmt(p.last_seen)}</td>
-                      <td className="px-6 py-3">
-                        <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${p.authorized ? "bg-[#DCFCE7] text-[#15803D] border border-[#BBF7D0]" : "bg-[#FEE2E2] text-[#B91C1C] border border-[#FECACA]"}`}>
-                          {p.authorized ? "Sí" : "No"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
+                  placas.map(p => {
+                    const seg = getSegmentoByPrecio(p.precio_estimado);
+                    return (
+                      <tr key={p.plate_text} className="border-b border-[#F9FAFB] hover:bg-gray-50/50 transition-colors">
+                        <td style={{ fontFamily: "'Geist', sans-serif" }} className="px-4 py-3 text-[14px] font-semibold tracking-wider text-[#1F2937]">{p.plate_text}</td>
+                        <td className="px-4 py-3 text-[13px] text-[#4B5563] capitalize">{p.vehicle_type}</td>
+                        <td className="px-4 py-3 text-[13px] text-[#4B5563]">{p.modelo || "—"}</td>
+                        <td style={{ fontFamily: "'Geist', sans-serif" }} className="px-4 py-3 text-[13px] text-[#1F2937] font-medium">{formatCOP(p.precio_estimado)}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-[12px] font-semibold ${seg.color}`}>{seg.label}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${BADGE_STYLES[p.badge]}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${BADGE_DOT[p.badge]}`} />
+                            {p.badge}
+                          </span>
+                        </td>
+                        <td style={{ fontFamily: "'Geist', sans-serif" }} className="px-4 py-3 text-[13px] font-bold text-[#FC6C03]">{p.count}</td>
+                        <td style={{ fontFamily: "'Geist', sans-serif" }} className="px-4 py-3 text-[13px] text-[#1F2937]">{p.peak_hour}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${p.authorized ? "bg-[#DCFCE7] text-[#15803D] border border-[#BBF7D0]" : "bg-[#FEE2E2] text-[#B91C1C] border border-[#FECACA]"}`}>
+                            {p.authorized ? "Sí" : "No"}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

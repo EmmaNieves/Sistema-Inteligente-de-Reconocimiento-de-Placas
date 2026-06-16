@@ -141,6 +141,7 @@ export interface Vehicle {
   registered_by: string | null;
   created_at: string;
   updated_at: string;
+  modelo?: string;
 }
 
 export interface Plate {
@@ -215,6 +216,8 @@ export interface PlacaAudiencia {
   top_camera_id: string;
   first_seen: string;
   last_seen: string;
+  modelo: string;           // 👈
+  precio_estimado: number;  // 👈
 }
 
 export interface AudienciasData {
@@ -239,6 +242,7 @@ export interface VehicleCreate {
   owner: string;
   vehicle_type: string;
   observations?: string;
+  modelo?: string;
 }
 
 export interface CameraCreate {

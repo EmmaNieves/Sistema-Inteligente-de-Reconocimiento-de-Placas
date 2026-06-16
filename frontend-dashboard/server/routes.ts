@@ -9,8 +9,8 @@ const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret_change_me";
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 
-function makeToken(userId: string): string {
-  return jwt.sign({ sub: userId }, JWT_SECRET, { expiresIn: "7d" });
+function makeToken(userId: string, role: string): string {
+  return jwt.sign({ sub: userId, role }, JWT_SECRET, { expiresIn: "7d" });
 }
 
 async function requireAuth(req: Request, res: Response): Promise<any | null> {
@@ -60,7 +60,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ detail: "Usuario o contraseña incorrectos" });
 
-    res.json({ access_token: makeToken(user.id), token_type: "bearer" });
+res.json({ access_token: makeToken(user.id, user.role), token_type: "bearer" });
   });
 
   app.get("/auth/me", async (req, res) => {
@@ -322,12 +322,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json(data);
   });
 
-  app.delete("/vehicles/:id", async (req, res) => {
+app.delete("/vehicles/:id", async (req, res) => {
   const user = await requireRole(req, res, "administrador");
-    const { error } = await supabase.from("vehicles").delete().eq("id", req.params.id);
-    if (error) return res.status(500).json({ detail: error.message });
-    res.status(204).send();
-  });
+  if (!user) return;
+
+  // Primero eliminar las placas asociadas al vehículo
+  const { error: platesError } = await supabase
+    .from("plates")
+    .delete()
+    .eq("vehicle_id", req.params.id);
+  if (platesError) return res.status(500).json({ detail: platesError.message });
+
+  // Luego eliminar el vehículo
+  const { error } = await supabase.from("vehicles").delete().eq("id", req.params.id);
+  if (error) return res.status(500).json({ detail: error.message });
+
+  res.status(204).send();
+});
 
   // ── CAMERAS ───────────────────────────────────────────────────────────────
 
